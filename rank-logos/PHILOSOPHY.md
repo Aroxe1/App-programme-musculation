@@ -1,0 +1,13 @@
+# Heraldic Ascension
+
+A visual liturgy of progression. Each rank is a sacred sigil — a celestial mark struck into dark vellum, glowing with the patient labor of an engraver who knows that hierarchy is not loudness but inevitability. The series reads as a procession: the eye climbs from coarse matter toward divine geometry, and each step rewards the climb with a quieter, more luminous form.
+
+Space is monastic. The composition is built around a single concentric architecture — outer ring, inner field, central glyph, Roman numeral — repeated across all ten emblems with the discipline of a Cistercian cloister. Negative space is the breath between heartbeats. Nothing crowds. Nothing pleads for attention. The eye returns to each emblem the way it returns to a coin in candlelight: turning it, weighing it, reading the small marks that prove it was struck by a master hand.
+
+Color is metallurgical and alchemical. Bronze burns warm and oxidized; silver is restrained, almost frosted; gold radiates without glitter; platinum cools to a pale architectural white; diamond carries the cyan of a glacier's interior; emerald is a deep cathedral green; through master, grand master, virtuoso the palette ascends into rare pigments — violet, magenta, fire — until "Dieu Grec" arrives as a pure golden ground, the Apollonian conclusion. Each pigment is calibrated against the deep ink of the night background, so the emblem reads as struck metal, not painted ornament.
+
+Typography is whispered Roman. A single classical serif, set small and centered, anchors each emblem with the dignity of a museum label. Above the name, a Roman numeral (I through X) sits with the weight of an inscription — meticulously letter-spaced, never decorative. Text is not communication; it is provenance. The viewer learns the rank from the form first, the word second.
+
+The craftsmanship must read at every scale. From across a room, the silhouette and color identify the rank instantly. At arm's length, the inner geometry reveals concentric rings, hairline strokes, the precise tessellation of a master engraver. Pressed close to the eye, the work shows the patience of countless hours: every angle deliberate, every spacing measured, every gradient calibrated. This is the labor of someone at the absolute top of their field — work that could be struck in metal and pressed into wax with no loss of authority.
+
+Above all: restraint. The temptation toward ornament is constant and must be refused. A flourish is a confession of doubt. The master engraver knows that the difference between a coin and a souvenir is not detail but conviction. These emblems are conviction made visible.

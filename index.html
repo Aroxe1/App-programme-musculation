@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="description" content="Application de suivi de programmes de musculation" />
+  <title>MuscuLog</title>
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="page-title">Programmes</h1>
+    <div class="topbar-actions">
+      <span id="sync-indicator" class="sync-indicator" data-status="" aria-label="État de synchronisation"></span>
+      <button id="account-btn" class="icon-btn" type="button" aria-label="Mon compte" title="Mon compte">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-8 2-8 6v1h16v-1c0-4-4-6-8-6z" fill="currentColor"/></svg>
+      </button>
+      <button id="fab-action" class="fab" type="button" aria-label="Action principale" hidden>+</button>
+    </div>
+  </header>
+
+  <main id="app" class="view"></main>
+
+  <nav class="bottom-nav" role="navigation" aria-label="Navigation principale">
+    <button class="nav-btn" data-route="programs" aria-label="Programmes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      <span>Programmes</span>
+    </button>
+    <button class="nav-btn" data-route="session" aria-label="Séance">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9v6M18 9v6M3 11h2v2H3zm16 0h2v2h-2zM7 8h2v8H7zm8 0h2v8h-2zM9 11h6v2H9z" fill="currentColor"/></svg>
+      <span>Séance</span>
+    </button>
+    <button class="nav-btn" data-route="nutrition" aria-label="Nutrition">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C9 2 7 5 7 8c0 2 1 4 2 6v6a3 3 0 0 0 6 0v-6c1-2 2-4 2-6 0-3-2-6-5-6z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 8v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Nutrition</span>
+    </button>
+    <button class="nav-btn" data-route="history" aria-label="Historique">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      <span>Historique</span>
+    </button>
+    <button class="nav-btn" data-route="progress" aria-label="Rang">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 5 5.5.8-4 3.9.9 5.5L12 14.8 7.1 17.2l.9-5.5-4-3.9 5.5-.8z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>
+      <span>Rang</span>
+    </button>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <template id="tpl-empty">
+    <div class="empty">
+      <div class="empty-icon">🏋️</div>
+      <p class="empty-title"></p>
+      <p class="empty-hint"></p>
+    </div>
+  </template>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

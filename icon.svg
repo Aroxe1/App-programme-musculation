@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0f1115"/>
+  <g transform="translate(256 256)" fill="none" stroke="#ff6a3d" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Barre centrale -->
+    <line x1="-150" y1="0" x2="150" y2="0"/>
+    <!-- Poids gauche -->
+    <line x1="-150" y1="-70" x2="-150" y2="70"/>
+    <line x1="-185" y1="-50" x2="-185" y2="50"/>
+    <!-- Poids droit -->
+    <line x1="150" y1="-70" x2="150" y2="70"/>
+    <line x1="185" y1="-50" x2="185" y2="50"/>
+  </g>
+</svg>

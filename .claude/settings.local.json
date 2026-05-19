@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\")",
+      "Bash(python -c \"from PIL import Image, ImageDraw, ImageFont; print\\('OK'\\)\")",
+      "Bash(python _generate.py)",
+      "Bash(cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\Gloock-Regular.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\" && cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\BricolageGrotesque-Regular.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\")",
+      "Bash(cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\BricolageGrotesque-Bold.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\" && cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\GeistMono-Regular.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\")",
+      "PowerShell($src = \"$env:APPDATA\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\"; $dst = \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\"; New-Item -ItemType Directory -Force $dst | Out-Null; Copy-Item \"$src\\\\Gloock-Regular.ttf\",\"$src\\\\BricolageGrotesque-Regular.ttf\",\"$src\\\\BricolageGrotesque-Bold.ttf\",\"$src\\\\GeistMono-Regular.ttf\" $dst; Get-ChildItem $dst | Select-Object Name)"
+    ]
+  }
+}
