@@ -1720,36 +1720,23 @@ function renderProfile(root) {
     ),
     el('div', { class: 'field' },
       el('label', {}, 'Genre'),
-      (() => {
-        const sel = el('select', { class: 'select',
-          onchange: e => { p.gender = e.target.value; recomputeMacros(); saveState(); },
-        },
-          el('option', { value: '' }, '—'),
-          el('option', { value: 'male' }, 'Homme'),
-          el('option', { value: 'female' }, 'Femme'),
-          el('option', { value: 'other' }, 'Autre'),
-        );
-        sel.value = p.gender || '';
-        return sel;
-      })(),
+      buildSegmented([
+        { value: 'male',   label: 'Homme' },
+        { value: 'female', label: 'Femme' },
+        { value: 'other',  label: 'Autre' },
+      ], p.gender || '', v => { p.gender = v; recomputeMacros(); saveState(); navigate('profile'); }),
     ),
   ));
 
   root.appendChild(el('div', { class: 'field' },
     el('label', {}, 'Niveau d’activité'),
-    (() => {
-      const sel = el('select', { class: 'select',
-        onchange: e => { p.activityLevel = e.target.value; recomputeMacros(); saveState(); },
-      },
-        el('option', { value: 'sedentary' },    'Sédentaire (peu/pas de sport)'),
-        el('option', { value: 'light' },        'Léger (1-3 séances/semaine)'),
-        el('option', { value: 'moderate' },     'Modéré (3-5 séances/semaine)'),
-        el('option', { value: 'active' },       'Actif (6-7 séances/semaine)'),
-        el('option', { value: 'very_active' },  'Très actif (2x/jour ou physique)'),
-      );
-      sel.value = p.activityLevel || 'moderate';
-      return sel;
-    })(),
+    buildOptionList([
+      { value: 'sedentary',   label: 'Sédentaire',  hint: 'Peu ou pas de sport' },
+      { value: 'light',       label: 'Léger',       hint: '1 à 3 séances / semaine' },
+      { value: 'moderate',    label: 'Modéré',      hint: '3 à 5 séances / semaine' },
+      { value: 'active',      label: 'Actif',       hint: '6 à 7 séances / semaine' },
+      { value: 'very_active', label: 'Très actif',  hint: '2× / jour ou travail physique' },
+    ], p.activityLevel || 'moderate', v => { p.activityLevel = v; recomputeMacros(); saveState(); navigate('profile'); }),
   ));
 
   // Aperçu calculs
@@ -1770,6 +1757,39 @@ function renderProfile(root) {
     class: 'btn btn-ghost btn-block mt-2',
     onclick: () => navigate('programs'),
   }, '← Retour'));
+}
+
+function buildSegmented(opts, current, onChange) {
+  const wrap = el('div', { class: 'segmented' });
+  for (const o of opts) {
+    const btn = el('button', {
+      type: 'button',
+      class: 'segmented-item' + (o.value === current ? ' active' : ''),
+      onclick: () => onChange(o.value),
+    }, o.label);
+    wrap.appendChild(btn);
+  }
+  return wrap;
+}
+
+function buildOptionList(opts, current, onChange) {
+  const wrap = el('div', { class: 'option-list' });
+  for (const o of opts) {
+    const isActive = o.value === current;
+    const row = el('button', {
+      type: 'button',
+      class: 'option-row' + (isActive ? ' active' : ''),
+      onclick: () => onChange(o.value),
+    },
+      el('div', { class: 'option-row-text' },
+        el('div', { class: 'option-row-label' }, o.label),
+        o.hint ? el('div', { class: 'option-row-hint' }, o.hint) : null,
+      ),
+      el('div', { class: 'option-row-tick' }, isActive ? '✓' : ''),
+    );
+    wrap.appendChild(row);
+  }
+  return wrap;
 }
 
 // Mifflin-St Jeor BMR puis TDEE

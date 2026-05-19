@@ -1,5 +1,5 @@
 /* MuscuLog Service Worker — cache app shell pour usage offline */
-const CACHE_NAME = 'musculog-v9';
+const CACHE_NAME = 'musculog-v10';
 const ASSETS = [
   './',
   './index.html',
