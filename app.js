@@ -1,4 +1,4 @@
-/* MuscuLog — PWA de suivi de musculation
+/* NextRep — PWA de suivi de musculation
  * Stockage : Firebase (Auth + Firestore) + cache localStorage par utilisateur.
  */
 'use strict';
@@ -324,7 +324,7 @@ function emptyState(icon, title, hint, ctaLabel, ctaOnClick) {
 function renderLoading(label) {
   const app = $('#app');
   app.innerHTML = '';
-  setTitle('MuscuLog');
+  setTitle('NextRep');
   setChrome(false);
   app.appendChild(el('div', { class: 'auth-screen' },
     el('div', { class: 'auth-spinner' }),
@@ -357,15 +357,17 @@ function renderConfigError(message) {
 // View : Authentification (login / signup)
 // ============================================================
 function renderAuth(root) {
-  setTitle('MuscuLog');
+  setTitle('NextRep');
   setChrome(false);
 
   const tab = route.params.tab === 'signup' ? 'signup' : 'login';
 
   const wrap = el('div', { class: 'auth-screen' });
 
-  wrap.appendChild(el('div', { class: 'auth-logo' }, '🏋️'));
-  wrap.appendChild(el('h1', { class: 'auth-title' }, 'MuscuLog'));
+  wrap.appendChild(el('div', { class: 'auth-logo' },
+    el('img', { src: 'logo_app.png', alt: 'NextRep', class: 'auth-logo-img' })
+  ));
+  wrap.appendChild(el('h1', { class: 'auth-title' }, 'NextRep'));
   wrap.appendChild(el('p', { class: 'muted text-center', style: 'margin-top: 0;' },
     tab === 'login' ? 'Connecte-toi pour retrouver tes programmes' : 'Crée un compte pour synchroniser tes séances'));
 
@@ -2257,11 +2259,32 @@ function buildBodyDiagram(ranks) {
 // Service Worker
 // ============================================================
 function registerSW() {
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(err => {
-        console.warn('SW registration failed', err);
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+      // Vérifie une mise à jour à chaque chargement
+      reg.update().catch(() => {});
+
+      // Quand un nouveau SW est installé et en attente, on l'active aussitôt
+      const promote = sw => {
+        if (sw && sw.state === 'installed' && navigator.serviceWorker.controller) {
+          sw.postMessage({ type: 'SKIP_WAITING' });
+        }
+      };
+      if (reg.waiting) promote(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => promote(nw));
       });
-    });
-  }
+
+      // Quand le nouveau SW prend le contrôle, on recharge la page → nouvelle version
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+    }).catch(err => console.warn('SW registration failed', err));
+  });
 }

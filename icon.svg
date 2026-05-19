@@ -1,13 +1,81 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#0f1115"/>
-  <g transform="translate(256 256)" fill="none" stroke="#ff6a3d" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Barre centrale -->
-    <line x1="-150" y1="0" x2="150" y2="0"/>
-    <!-- Poids gauche -->
-    <line x1="-150" y1="-70" x2="-150" y2="70"/>
-    <line x1="-185" y1="-50" x2="-185" y2="50"/>
-    <!-- Poids droit -->
-    <line x1="150" y1="-70" x2="150" y2="70"/>
-    <line x1="185" y1="-50" x2="185" y2="50"/>
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="55%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <radialGradient id="aurora" cx="50%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
+      <stop offset="60%" stop-color="#8b5cf6" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Tuile sombre + halo aurora -->
+  <rect width="512" height="512" rx="96" fill="#0a0b12"/>
+  <rect width="512" height="512" rx="96" fill="url(#aurora)"/>
+
+  <!-- Silhouette bodybuilder — pose double biceps de face -->
+  <g fill="url(#grad)">
+    <!-- Tête -->
+    <circle cx="256" cy="138" r="40"/>
+
+    <!-- Cou + trapèzes -->
+    <path d="M 220 172
+             Q 256 166 292 172
+             L 304 198
+             Q 280 188 256 188
+             Q 232 188 208 198 Z"/>
+
+    <!-- Torse V-shape (épaules larges → taille fine) -->
+    <path d="M 168 198
+             Q 178 188 196 186
+             L 316 186
+             Q 334 188 344 198
+             L 332 296
+             Q 322 332 300 348
+             L 212 348
+             Q 190 332 180 296 Z"/>
+
+    <!-- Bras gauche : haut du bras (horizontal) -->
+    <rect x="72" y="200" width="128" height="62" rx="31"/>
+
+    <!-- Bras gauche : pic du biceps -->
+    <ellipse cx="118" cy="216" rx="48" ry="30"/>
+
+    <!-- Bras gauche : avant-bras (vertical, vers la tête) -->
+    <rect x="78" y="84" width="64" height="156" rx="32"/>
+
+    <!-- Bras droit : haut du bras -->
+    <rect x="312" y="200" width="128" height="62" rx="31"/>
+
+    <!-- Bras droit : pic du biceps -->
+    <ellipse cx="394" cy="216" rx="48" ry="30"/>
+
+    <!-- Bras droit : avant-bras -->
+    <rect x="370" y="84" width="64" height="156" rx="32"/>
+
+    <!-- Liaison hanches / quadriceps -->
+    <path d="M 202 340
+             L 310 340
+             L 318 376
+             Q 256 392 194 376 Z"/>
+
+    <!-- Cuisse gauche -->
+    <path d="M 208 370
+             L 192 466
+             Q 192 478 204 478
+             L 244 478
+             Q 254 478 254 466
+             L 250 370 Z"/>
+
+    <!-- Cuisse droite -->
+    <path d="M 304 370
+             L 320 466
+             Q 320 478 308 478
+             L 268 478
+             Q 258 478 258 466
+             L 262 370 Z"/>
   </g>
 </svg>

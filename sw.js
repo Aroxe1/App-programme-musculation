@@ -1,5 +1,5 @@
-/* MuscuLog Service Worker — cache app shell pour usage offline */
-const CACHE_NAME = 'musculog-v10';
+/* NextRep Service Worker — network-first pour l'app shell, cache = fallback offline */
+const CACHE_NAME = 'nextrep-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,7 @@ const ASSETS = [
   './ranks.js',
   './firebase-config.js',
   './manifest.webmanifest',
-  './icon.svg',
+  './logo_app.png',
   './fonts/Gloock-Regular.ttf',
   './fonts/BricolageGrotesque-Regular.ttf',
   './fonts/BricolageGrotesque-Bold.ttf',
@@ -29,7 +29,6 @@ const ASSETS = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
-      // Ignore les erreurs sur les fichiers manquants (ex : icônes PNG si non générées)
       Promise.all(ASSETS.map(url =>
         cache.add(url).catch(err => console.warn('SW: skip', url, err.message))
       ))
@@ -45,45 +44,45 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Permet à la page de demander au SW de skipWaiting (utilisé pour l'auto-update)
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
 
-  // Ne pas intercepter les requêtes Firestore/Auth temps réel (long-polling, websockets)
+  // Ne pas intercepter les requêtes Firestore/Auth temps réel
   if (url.hostname.endsWith('googleapis.com') || url.hostname.endsWith('firebaseio.com')) {
     return;
   }
 
-  // SDK Firebase (gstatic) : network-first avec fallback cache pour usage hors-ligne
+  // SDK Firebase (gstatic) : network-first avec fallback cache
   if (url.hostname === 'www.gstatic.com' && url.pathname.includes('/firebasejs/')) {
-    event.respondWith(
-      fetch(req).then(resp => {
-        if (resp.ok) {
-          const clone = resp.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
-        }
-        return resp;
-      }).catch(() => caches.match(req))
-    );
+    event.respondWith(networkFirst(req));
     return;
   }
 
-  // App shell : cache-first
-  event.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(resp => {
-        if (resp.ok && url.origin === self.location.origin) {
-          const clone = resp.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
-        }
-        return resp;
-      }).catch(() => {
-        if (req.mode === 'navigate') return caches.match('./index.html');
-        return new Response('', { status: 504, statusText: 'Offline' });
-      });
-    })
-  );
+  // App shell same-origin : network-first → fallback cache (offline)
+  if (url.origin === self.location.origin) {
+    event.respondWith(networkFirst(req));
+    return;
+  }
 });
+
+function networkFirst(req) {
+  return fetch(req).then(resp => {
+    if (resp && resp.ok) {
+      const clone = resp.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+    }
+    return resp;
+  }).catch(() => caches.match(req).then(cached => {
+    if (cached) return cached;
+    if (req.mode === 'navigate') return caches.match('./index.html');
+    return new Response('', { status: 504, statusText: 'Offline' });
+  }));
+}

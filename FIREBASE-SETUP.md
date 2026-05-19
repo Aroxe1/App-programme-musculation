@@ -1,4 +1,4 @@
-# Configuration Firebase pour MuscuLog
+# Configuration Firebase pour NextRep
 
 L'app utilise **Firebase Authentication** (email + mot de passe) et **Cloud Firestore**
 (base de données) pour que chaque utilisateur ait ses propres programmes et séances,

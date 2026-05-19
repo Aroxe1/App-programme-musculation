@@ -6,12 +6,13 @@
  * La sécurité repose sur les règles Firestore (voir FIREBASE-SETUP.md).
  */
 export const firebaseConfig = {
-  apiKey: "AIzaSyDcj7artKo-4YLVoMJLV6nux3K6Wr0Tb5o",
-  authDomain: "musculog-f720e.firebaseapp.com",
-  projectId: "musculog-f720e",
-  storageBucket: "musculog-f720e.firebasestorage.app",
-  messagingSenderId: "705619083050",
-  appId: "1:705619083050:web:00d7495aca1d503727e853",
+  apiKey: "AIzaSyBz0TwQKESi750hXvFvpr33m7Z7uaNfMls",
+  authDomain: "nextrep-6e560.firebaseapp.com",
+  projectId: "nextrep-6e560",
+  storageBucket: "nextrep-6e560.firebasestorage.app",
+  messagingSenderId: "532835752796",
+  appId: "1:532835752796:web:425eb4a66e35aee269ff99",
+  measurementId: "G-7DD9BLYT3R"
 };
 
 // Indique si la config a été remplie (utilisé pour afficher un message d'erreur clair)

@@ -1,4 +1,4 @@
-# MuscuLog — Lance un serveur HTTP local et ouvre l'app dans le navigateur.
+# NextRep — Lance un serveur HTTP local et ouvre l'app dans le navigateur.
 # Usage : pwsh -ExecutionPolicy Bypass -File serve.ps1
 #         ou clic droit -> Exécuter avec PowerShell
 
@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
-Write-Host "MuscuLog server -> http://localhost:$Port/" -ForegroundColor Cyan
+Write-Host "NextRep server -> http://localhost:$Port/" -ForegroundColor Cyan
 Write-Host "Dossier : $root"
 Write-Host "Ctrl+C pour arreter."
 

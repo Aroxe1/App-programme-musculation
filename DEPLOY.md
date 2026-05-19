@@ -1,4 +1,4 @@
-# Déployer MuscuLog en ligne
+# Déployer NextRep en ligne
 
 Tu vas héberger l'app sur **Firebase Hosting** (gratuit, HTTPS automatique, déjà connecté à ton projet Firebase). En 5 minutes tu auras une URL `https://musculog-f720e.web.app` consultable de n'importe où.
 
@@ -84,14 +84,14 @@ L'app est une **PWA** : pas besoin du Play Store ni de l'App Store, elle s'insta
 5. Scrolle vers le bas → **« Sur l'écran d'accueil »** (« Add to Home Screen »)
 6. Tape **Ajouter** en haut à droite
 
-Une icône MuscuLog apparaît sur ton écran d'accueil. En l'ouvrant, elle se lance en plein écran sans la barre du navigateur, comme une vraie app.
+Une icône NextRep apparaît sur ton écran d'accueil. En l'ouvrant, elle se lance en plein écran sans la barre du navigateur, comme une vraie app.
 
 ### 📱 Android (Chrome, Edge, Brave…)
 
 1. Ouvre Chrome
 2. Va sur `https://musculog-f720e.web.app`
 3. Connecte-toi
-4. **Méthode 1 :** Chrome propose souvent une bannière en bas « Installer MuscuLog » — tape dessus
+4. **Méthode 1 :** Chrome propose souvent une bannière en bas « Installer NextRep » — tape dessus
 5. **Méthode 2 :** Menu **⋮** (en haut à droite) → **« Installer l'application »** ou **« Ajouter à l'écran d'accueil »**
 
 L'app apparaît dans le tiroir d'applications comme n'importe quelle autre. Elle fonctionne hors-ligne (service worker), synchronise dès que tu retrouves du réseau.

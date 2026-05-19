@@ -1,4 +1,4 @@
-/* auth.js — wrapper Firebase Auth + Firestore pour MuscuLog
+/* auth.js — wrapper Firebase Auth + Firestore pour NextRep
  * Expose une API simple : init, onAuthChanged, signIn/signUp/signOut,
  * loadUserData, saveUserData (debounced), sendReset.
  */

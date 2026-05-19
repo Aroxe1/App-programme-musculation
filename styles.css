@@ -1,4 +1,4 @@
-/* MuscuLog — Direction artistique « Aurora Performance »
+/* NextRep — Direction artistique « Aurora Performance »
  * Verre dépoli, gradients chauds, hero tiles, pill nav flottante.
  */
 
@@ -1018,9 +1018,15 @@ body.no-chrome .topbar-actions .sync-indicator { visibility: hidden; }
   text-align: center;
 }
 .auth-logo {
-  font-size: 56px;
   margin-bottom: 8px;
   filter: drop-shadow(0 0 32px var(--accent-glow));
+  display: flex;
+  justify-content: center;
+}
+.auth-logo-img {
+  width: 260px;
+  height: 260px;
+  object-fit: contain;
 }
 .auth-title {
   font-family: var(--font-ui);
