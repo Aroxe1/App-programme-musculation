@@ -5,24 +5,24 @@
 /* ---------- Fonts ---------- */
 @font-face {
   font-family: 'Gloock';
-  src: url('fonts/Gloock-Regular.ttf') format('truetype');
+  src: url('../../assets/fonts/Gloock-Regular.ttf') format('truetype');
   font-display: swap;
 }
 @font-face {
   font-family: 'Bricolage';
-  src: url('fonts/BricolageGrotesque-Regular.ttf') format('truetype');
+  src: url('../../assets/fonts/BricolageGrotesque-Regular.ttf') format('truetype');
   font-display: swap;
   font-weight: 400;
 }
 @font-face {
   font-family: 'Bricolage';
-  src: url('fonts/BricolageGrotesque-Bold.ttf') format('truetype');
+  src: url('../../assets/fonts/BricolageGrotesque-Bold.ttf') format('truetype');
   font-display: swap;
   font-weight: 700;
 }
 @font-face {
   font-family: 'GeistMono';
-  src: url('fonts/GeistMono-Regular.ttf') format('truetype');
+  src: url('../../assets/fonts/GeistMono-Regular.ttf') format('truetype');
   font-display: swap;
 }
 
@@ -181,6 +181,65 @@ input, select, textarea { font-family: inherit; font-size: 16px; color: var(--te
   transition: transform 0.15s ease;
 }
 .fab:active { transform: scale(0.92); }
+.fab[hidden] { display: none; }
+body.no-chrome .fab { display: none; }
+
+/* Badge "non lu" sur le bouton actualités */
+#notifs-btn { position: relative; }
+.notifs-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.notifs-badge[hidden] { display: none; }
+
+/* Liste actualités dans la modal */
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+.news-item {
+  background: var(--bg-glass);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+.news-item.unread {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+.news-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.news-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.news-date {
+  font-size: 11px;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+.news-body {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
 
 .topbar-actions {
   display: flex;
@@ -1177,20 +1236,47 @@ body.no-chrome .topbar-actions .sync-indicator { visibility: hidden; }
 
 .body-wrap {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   margin: 18px 0;
+}
+.body-toggle {
+  display: inline-flex;
+  background: var(--bg-glass);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 4px;
+  margin-bottom: 14px;
+  gap: 4px;
+}
+.body-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.body-toggle-btn.active {
+  background: var(--grad-warm);
+  color: #fff;
+  box-shadow: 0 2px 12px var(--accent-glow);
+}
+.body-stage {
   filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.4));
 }
 .body-diagram {
-  width: 240px;
-  max-width: 80%;
+  width: 220px;
+  max-width: 75%;
   height: auto;
 }
-.body-diagram path[data-g],
-.body-diagram ellipse[data-g] {
+.body-diagram { display: block; margin: 0 auto; }
+.body-diagram [data-g] {
   transition: fill 0.3s ease;
-  stroke: rgba(0, 0, 0, 0.5);
-  stroke-width: 0.5;
 }
 
 .rank-list {

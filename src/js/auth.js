@@ -12,7 +12,9 @@ import {
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
+  reload,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore,
@@ -75,6 +77,8 @@ export async function signUp(email, password, displayName) {
   if (displayName) {
     try { await updateProfile(cred.user, { displayName }); } catch (_) { /* non-bloquant */ }
   }
+  // Envoie l'email de vérification immédiatement
+  try { await sendEmailVerification(cred.user); } catch (err) { console.warn('sendEmailVerification', err); }
   return cred.user;
 }
 
@@ -85,6 +89,17 @@ export async function signIn(email, password) {
 
 export async function sendReset(email) {
   await sendPasswordResetEmail(auth, email);
+}
+
+export async function resendVerification() {
+  if (!auth?.currentUser) throw new Error('Aucun utilisateur connecté');
+  await sendEmailVerification(auth.currentUser);
+}
+
+export async function reloadCurrentUser() {
+  if (!auth?.currentUser) return null;
+  await reload(auth.currentUser);
+  return auth.currentUser;
 }
 
 export async function signOut() {

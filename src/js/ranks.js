@@ -36,16 +36,16 @@ export const RANK_ICONS = {
 
 // URL des logos PNG (générés via rank-logos/_generate.py)
 export const RANK_LOGOS = {
-  bronze:        'rank-logos/rank-bronze.png',
-  argent:        'rank-logos/rank-argent.png',
-  or:            'rank-logos/rank-or.png',
-  platine:       'rank-logos/rank-platine.png',
-  diamant:       'rank-logos/rank-diamant.png',
-  emeraude:      'rank-logos/rank-emeraude.png',
-  maitre:        'rank-logos/rank-maitre.png',
-  'grand-maitre':'rank-logos/rank-grand-maitre.png',
-  virtuose:      'rank-logos/rank-virtuose.png',
-  'dieu-grec':   'rank-logos/rank-dieu-grec.png',
+  bronze:        'assets/rank-logos/rank-bronze.png',
+  argent:        'assets/rank-logos/rank-argent.png',
+  or:            'assets/rank-logos/rank-or.png',
+  platine:       'assets/rank-logos/rank-platine.png',
+  diamant:       'assets/rank-logos/rank-diamant.png',
+  emeraude:      'assets/rank-logos/rank-emeraude.png',
+  maitre:        'assets/rank-logos/rank-maitre.png',
+  'grand-maitre':'assets/rank-logos/rank-grand-maitre.png',
+  virtuose:      'assets/rank-logos/rank-virtuose.png',
+  'dieu-grec':   'assets/rank-logos/rank-dieu-grec.png',
 };
 
 // Groupes musculaires disponibles

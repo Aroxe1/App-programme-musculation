@@ -5,12 +5,32 @@
 
 import * as Auth from './auth.js';
 import { RANKS, RANK_ICONS, RANK_LOGOS, MUSCLE_GROUPS, computeRanks, overallRank, detectGroups } from './ranks.js';
+import { anteriorData, posteriorData } from './body-paths.js';
 
 // ============================================================
 // Storage (par utilisateur)
 // ============================================================
 const STORAGE_PREFIX = 'musculog.v2.';
 const LEGACY_KEY = 'musculog.v1'; // ancienne clé (avant comptes)
+
+// Auto-logout après 30 jours d'inactivité (sécurité)
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const LAST_ACTIVE_KEY = 'nextrep.lastActive';
+function markActive() {
+  try { localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now())); } catch (_) {}
+}
+function isSessionExpired() {
+  try {
+    const v = localStorage.getItem(LAST_ACTIVE_KEY);
+    if (!v) return false;
+    const last = parseInt(v, 10);
+    if (!Number.isFinite(last)) return false;
+    return (Date.now() - last) > SESSION_TTL_MS;
+  } catch (_) { return false; }
+}
+function clearActive() {
+  try { localStorage.removeItem(LAST_ACTIVE_KEY); } catch (_) {}
+}
 
 const defaultState = () => ({
   programs: [],
@@ -184,6 +204,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const acc = $('#account-btn');
   if (acc) acc.addEventListener('click', openAccountMenu);
 
+  // Bouton actualités dans la topbar
+  const notifs = $('#notifs-btn');
+  if (notifs) notifs.addEventListener('click', openNotificationsPanel);
+  updateNotifsBadge();
+
   bootstrapAuth();
   registerSW();
 });
@@ -216,44 +241,31 @@ async function bootstrapAuth() {
       render();
       return;
     }
-    currentUid = user.uid;
-    cloudReady = false;
-    // Charge d'abord le cache local pour un affichage immédiat
-    const cached = loadStateFromLocal(currentUid);
-    store = cached ? { ...defaultState(), ...cached } : defaultState();
-    setChrome(true);
-    route.name = route.name === 'auth' ? 'programs' : route.name;
-    render();
-
-    // Puis charge depuis Firestore (autorité)
-    try {
-      const cloud = await Auth.loadUserData(currentUid);
-      if (cloud) {
-        store = { ...defaultState(), ...cloud };
-      } else {
-        // Premier login : si on a un état hérité (v1 local) et que c'est le premier compte → proposer import
-        const legacy = !cached ? migrateLegacyIfAny() : null;
-        if (legacy) {
-          store = { ...defaultState(), ...legacy };
-          toast('Données locales existantes importées dans ton compte');
-        }
-      }
-      cloudReady = true;
-      writeStateToLocal(currentUid);
-      // Si on a chargé des données initiales (legacy), on les pousse au cloud
-      if (!cloud) {
-        Auth.saveUserDataDebounced(currentUid, store, 200);
-      }
+    // Email non vérifié → bloque l'accès, affiche écran de vérification
+    if (!user.emailVerified) {
+      currentUid = null;
+      cloudReady = false;
+      store = defaultState();
+      route.name = 'verify-email';
+      route.params = { email: user.email };
+      setChrome(false);
       render();
-    } catch (err) {
-      console.warn('Chargement Firestore échoué', err);
-      cloudReady = true; // on autorise les saves quand même (mode dégradé)
-      toast('Données chargées depuis le cache (hors-ligne)');
+      return;
     }
+    // Session expirée (30j sans activité) → logout forcé
+    if (isSessionExpired()) {
+      clearActive();
+      try { await Auth.signOut(); } catch (_) {}
+      toast('Session expirée — reconnecte-toi');
+      return; // onAuthChanged va se redéclencher avec user=null
+    }
+    markActive();
+    await enterVerifiedUser(user);
   });
 
   // Indicateur de sync dans la topbar
   Auth.onSaveStatus(status => {
+    if (status === 'saved' || status === 'pending') markActive();
     const ind = $('#sync-indicator');
     if (!ind) return;
     ind.dataset.status = status;
@@ -264,6 +276,45 @@ async function bootstrapAuth() {
       error: 'Erreur de synchronisation',
     })[status] || '';
   });
+}
+
+// Charge les données d'un utilisateur dont l'email est déjà vérifié
+// et affiche l'app. Utilisé depuis onAuthChanged ET après vérif manuelle.
+async function enterVerifiedUser(user) {
+  currentUid = user.uid;
+  cloudReady = false;
+  const cached = loadStateFromLocal(currentUid);
+  store = cached ? { ...defaultState(), ...cached } : defaultState();
+  setChrome(true);
+  // Si on était sur auth ou verify-email, on bascule sur programs
+  if (route.name === 'auth' || route.name === 'verify-email') {
+    route.name = 'programs';
+    route.params = {};
+  }
+  render();
+
+  try {
+    const cloud = await Auth.loadUserData(currentUid);
+    if (cloud) {
+      store = { ...defaultState(), ...cloud };
+    } else {
+      const legacy = !cached ? migrateLegacyIfAny() : null;
+      if (legacy) {
+        store = { ...defaultState(), ...legacy };
+        toast('Données locales existantes importées dans ton compte');
+      }
+    }
+    cloudReady = true;
+    writeStateToLocal(currentUid);
+    if (!cloud) {
+      Auth.saveUserDataDebounced(currentUid, store, 200);
+    }
+    render();
+  } catch (err) {
+    console.warn('Chargement Firestore échoué', err);
+    cloudReady = true;
+    toast('Données chargées depuis le cache (hors-ligne)');
+  }
 }
 
 // ============================================================
@@ -280,6 +331,7 @@ function render() {
 
   switch (route.name) {
     case 'auth':           renderAuth(app); break;
+    case 'verify-email':   renderVerifyEmail(app); break;
     case 'loading':        renderLoading(route.params.label || 'Chargement…'); break;
     case 'config-error':   /* géré séparément */ break;
     case 'programs':       renderPrograms(app); break;
@@ -365,7 +417,7 @@ function renderAuth(root) {
   const wrap = el('div', { class: 'auth-screen' });
 
   wrap.appendChild(el('div', { class: 'auth-logo' },
-    el('img', { src: 'logo_app.png', alt: 'NextRep', class: 'auth-logo-img' })
+    el('img', { src: 'assets/logo_app.png', alt: 'NextRep', class: 'auth-logo-img' })
   ));
   wrap.appendChild(el('h1', { class: 'auth-title' }, 'NextRep'));
   wrap.appendChild(el('p', { class: 'muted text-center', style: 'margin-top: 0;' },
@@ -484,6 +536,79 @@ function buildSignupForm() {
   return form;
 }
 
+// ============================================================
+// View : Vérification d'email (bloquant tant que non vérifié)
+// ============================================================
+function renderVerifyEmail(root) {
+  setTitle('Vérification email');
+  setChrome(false);
+
+  const email = route.params.email || Auth.currentUser()?.email || '';
+
+  const wrap = el('div', { class: 'auth-screen' });
+  wrap.appendChild(el('div', { class: 'auth-logo' },
+    el('img', { src: 'assets/logo_app.png', alt: 'NextRep', class: 'auth-logo-img' })
+  ));
+  wrap.appendChild(el('h1', { class: 'auth-title' }, 'Vérifie ton email'));
+  wrap.appendChild(el('p', { class: 'muted text-center', style: 'margin-top: 0;' },
+    'Un lien de vérification a été envoyé à'));
+  wrap.appendChild(el('p', { class: 'text-center', style: 'font-weight: 700; margin: 4px 0 16px; word-break: break-all;' }, email));
+  wrap.appendChild(el('p', { class: 'muted text-center', style: 'margin-bottom: 20px;' },
+    'Clique sur le lien dans l’email, puis reviens ici et tape sur « J’ai vérifié ».'));
+
+  const checkBtn = el('button', { class: 'btn btn-primary btn-block', type: 'button' }, 'J’ai vérifié, continuer');
+  const resendBtn = el('button', { class: 'btn btn-block', type: 'button', style: 'margin-top: 10px;' }, 'Renvoyer l’email');
+  const logoutBtn = el('button', { class: 'btn btn-ghost btn-block', type: 'button', style: 'margin-top: 18px;' }, 'Se déconnecter');
+
+  checkBtn.onclick = async () => {
+    checkBtn.disabled = true;
+    checkBtn.textContent = 'Vérification…';
+    try {
+      const u = await Auth.reloadCurrentUser();
+      if (u && u.emailVerified) {
+        toast('Email vérifié ✓');
+        // onAuthChanged ne se redéclenche pas après reload(user) :
+        // on déclenche manuellement le chargement de l'app.
+        await enterVerifiedUser(u);
+      } else {
+        toast('Email pas encore vérifié — clique sur le lien dans l’email');
+        checkBtn.disabled = false;
+        checkBtn.textContent = 'J’ai vérifié, continuer';
+      }
+    } catch (err) {
+      toast(humanAuthError(err));
+      checkBtn.disabled = false;
+      checkBtn.textContent = 'J’ai vérifié, continuer';
+    }
+  };
+
+  resendBtn.onclick = async () => {
+    resendBtn.disabled = true;
+    resendBtn.textContent = 'Envoi…';
+    try {
+      await Auth.resendVerification();
+      toast('Email renvoyé ✓');
+    } catch (err) {
+      toast(humanAuthError(err));
+    } finally {
+      setTimeout(() => {
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Renvoyer l’email';
+      }, 3000);
+    }
+  };
+
+  logoutBtn.onclick = async () => {
+    clearActive();
+    try { await Auth.signOut(); } catch (_) {}
+  };
+
+  wrap.appendChild(checkBtn);
+  wrap.appendChild(resendBtn);
+  wrap.appendChild(logoutBtn);
+  root.appendChild(wrap);
+}
+
 function humanAuthError(err) {
   const code = err?.code || '';
   switch (code) {
@@ -503,6 +628,71 @@ function humanAuthError(err) {
 // ============================================================
 // Menu compte (dans la topbar)
 // ============================================================
+// ============================================================
+// Actualités (notifications) — éditable ici
+// ============================================================
+// Pour ajouter une actualité : ajoute une entrée tout EN HAUT du tableau.
+// id : identifiant unique (string) — utilisé pour marquer comme lu.
+// Le badge rouge sur le bouton apparaît tant qu'au moins une actualité n'est pas lue.
+const NEWS_FEED = [
+  {
+    id: '2026-05-20-addNotification',
+    title: 'Bienvenue sur NextRep 🎉',
+    date: '20 mai 2026',
+    body: "Ajout des notifications au sein de l'application !",
+  },
+];
+
+const NEWS_READ_KEY = 'nextrep.newsRead';
+function getReadNews() {
+  try { return new Set(JSON.parse(localStorage.getItem(NEWS_READ_KEY) || '[]')); }
+  catch (_) { return new Set(); }
+}
+function markAllNewsRead() {
+  try {
+    localStorage.setItem(NEWS_READ_KEY, JSON.stringify(NEWS_FEED.map(n => n.id)));
+  } catch (_) {}
+  updateNotifsBadge();
+}
+function updateNotifsBadge() {
+  const badge = $('#notifs-badge');
+  if (!badge) return;
+  const read = getReadNews();
+  const unread = NEWS_FEED.some(n => !read.has(n.id));
+  badge.hidden = !unread;
+}
+
+function openNotificationsPanel() {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => { markAllNewsRead(); backdrop.remove(); };
+
+  const list = el('div', { class: 'news-list' });
+  if (NEWS_FEED.length === 0) {
+    list.appendChild(el('p', { class: 'muted text-center' }, 'Aucune actualité pour le moment.'));
+  } else {
+    const read = getReadNews();
+    for (const n of NEWS_FEED) {
+      const item = el('div', { class: 'news-item' + (read.has(n.id) ? '' : ' unread') },
+        el('div', { class: 'news-head' },
+          el('h3', { class: 'news-title' }, n.title),
+          el('span', { class: 'news-date' }, n.date),
+        ),
+        el('p', { class: 'news-body' }, n.body),
+      );
+      list.appendChild(item);
+    }
+  }
+
+  const modal = el('div', { class: 'modal' },
+    el('h2', {}, 'Actualités'),
+    list,
+    el('button', { class: 'btn btn-block mt-2', type: 'button', onclick: close }, 'Fermer'),
+  );
+
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
 function openAccountMenu() {
   const user = Auth.currentUser();
   if (!user) return;
@@ -533,6 +723,7 @@ function openAccountMenu() {
           close();
           try {
             await Auth.flush();
+            clearActive();
             await Auth.signOut();
           } catch (err) {
             toast('Erreur de déconnexion');
@@ -2212,62 +2403,153 @@ function buildRankSection() {
 
 function buildBodyDiagram(ranks) {
   const wrap = el('div', { class: 'body-wrap' });
-  const colorOf = g => (ranks[g]?.rank?.color) || '#2a2f3a';
+  const colorOf = g => (ranks[g]?.rank?.color) || null;
+  const MUSCLE_REST = '#3a4154'; // muscle anatomique non ranké
+  const SKIN = '#1f2330';        // tête / cou / genoux (structure)
+  const STROKE = 'rgba(255,255,255,0.18)';
 
-  // SVG silhouette frontale stylisée
-  const svg = `<svg viewBox="0 0 200 420" xmlns="http://www.w3.org/2000/svg" class="body-diagram">
-  <!-- Tête -->
-  <ellipse cx="100" cy="34" rx="22" ry="26" fill="#2a2f3a"/>
-  <!-- Cou -->
-  <rect x="91" y="56" width="18" height="12" fill="#2a2f3a"/>
-  <!-- Trapèzes -->
-  <path d="M 75 66 Q 100 60 125 66 L 130 80 Q 100 72 70 80 Z" fill="${colorOf('traps')}" data-g="traps"/>
-  <!-- Épaules -->
-  <ellipse cx="62" cy="86" rx="16" ry="13" fill="${colorOf('shoulders')}" data-g="shoulders"/>
-  <ellipse cx="138" cy="86" rx="16" ry="13" fill="${colorOf('shoulders')}" data-g="shoulders"/>
-  <!-- Pectoraux (deux moitiés) -->
-  <path d="M 99 80 Q 75 86 73 130 Q 95 132 99 105 Z" fill="${colorOf('chest')}" data-g="chest"/>
-  <path d="M 101 80 Q 125 86 127 130 Q 105 132 101 105 Z" fill="${colorOf('chest')}" data-g="chest"/>
-  <!-- Biceps -->
-  <path d="M 55 100 Q 45 115 48 158 Q 62 162 67 115 Z" fill="${colorOf('biceps')}" data-g="biceps"/>
-  <path d="M 145 100 Q 155 115 152 158 Q 138 162 133 115 Z" fill="${colorOf('biceps')}" data-g="biceps"/>
-  <!-- Triceps (bordure extérieure du bras) -->
-  <path d="M 45 110 Q 38 130 40 162 L 47 162 Q 50 138 50 115 Z" fill="${colorOf('triceps')}" data-g="triceps"/>
-  <path d="M 155 110 Q 162 130 160 162 L 153 162 Q 150 138 150 115 Z" fill="${colorOf('triceps')}" data-g="triceps"/>
-  <!-- Avant-bras -->
-  <path d="M 42 160 Q 35 180 38 215 Q 54 217 57 170 Z" fill="${colorOf('forearms')}" data-g="forearms"/>
-  <path d="M 158 160 Q 165 180 162 215 Q 146 217 143 170 Z" fill="${colorOf('forearms')}" data-g="forearms"/>
-  <!-- Abdos -->
-  <path d="M 83 132 L 117 132 L 119 200 Q 100 206 81 200 Z" fill="${colorOf('abs')}" data-g="abs"/>
-  <!-- Bassin (decor) -->
-  <path d="M 78 202 Q 100 215 122 202 L 124 222 Q 100 230 76 222 Z" fill="#2a2f3a"/>
-  <!-- Quadriceps -->
-  <path d="M 80 222 Q 70 240 76 310 Q 96 312 98 226 Z" fill="${colorOf('quadriceps')}" data-g="quadriceps"/>
-  <path d="M 120 222 Q 130 240 124 310 Q 104 312 102 226 Z" fill="${colorOf('quadriceps')}" data-g="quadriceps"/>
-  <!-- Genoux -->
-  <ellipse cx="86" cy="318" rx="10" ry="7" fill="#2a2f3a"/>
-  <ellipse cx="114" cy="318" rx="10" ry="7" fill="#2a2f3a"/>
-  <!-- Mollets -->
-  <path d="M 80 325 Q 73 345 80 395 Q 94 397 95 330 Z" fill="${colorOf('calves')}" data-g="calves"/>
-  <path d="M 120 325 Q 127 345 120 395 Q 106 397 105 330 Z" fill="${colorOf('calves')}" data-g="calves"/>
-</svg>`;
-  wrap.innerHTML = svg;
+  // Mapping muscle du dataset → groupe de l'app
+  const MAP = {
+    chest: 'chest', abs: 'abs', obliques: 'abs',
+    biceps: 'biceps', triceps: 'triceps', forearms: 'forearms',
+    shoulders: 'shoulders', traps: 'traps', back: 'back',
+    quadriceps: 'quadriceps', abductors: 'quadriceps',
+    hamstrings: 'hamstrings', glutes: 'glutes', calves: 'calves',
+    head: null, neck: null, knees: null,
+  };
+
+  function renderPolygons(data) {
+    return data.map(({ muscle, points }) => {
+      const groupId = MAP[muscle];
+      const ranked = groupId ? colorOf(groupId) : null;
+      let fill;
+      if (groupId === null) fill = SKIN;       // structure (tête, cou, genoux)
+      else if (ranked)      fill = ranked;     // muscle ranké → couleur du rang
+      else                  fill = MUSCLE_REST;// muscle au repos
+      const attrs = `fill="${fill}" stroke="${STROKE}" stroke-width="0.5" data-g="${groupId || ''}"`;
+      return points.map(p => `<polygon points="${p}" ${attrs}/>`).join('');
+    }).join('');
+  }
+
+  // ---------- Vue de FACE (anatomique, paths MIT body-highlighter) ----------
+  const front = `<svg viewBox="0 0 100 220" xmlns="http://www.w3.org/2000/svg" class="body-diagram" aria-label="Vue de face">
+    ${renderPolygons(anteriorData)}
+  </svg>`;
+
+  // ---------- Vue de DOS ----------
+  const back = `<svg viewBox="0 0 100 220" xmlns="http://www.w3.org/2000/svg" class="body-diagram" aria-label="Vue de dos">
+    ${renderPolygons(posteriorData)}
+  </svg>`;
+
+  // Toggle Front / Back
+  const toggle = el('div', { class: 'body-toggle' },
+    el('button', { type: 'button', class: 'body-toggle-btn active', 'data-view': 'front' }, 'Face'),
+    el('button', { type: 'button', class: 'body-toggle-btn', 'data-view': 'back' }, 'Dos'),
+  );
+
+  const stage = el('div', { class: 'body-stage' });
+  stage.innerHTML = front;
+
+  toggle.querySelectorAll('.body-toggle-btn').forEach(btn => {
+    btn.onclick = () => {
+      toggle.querySelectorAll('.body-toggle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      stage.innerHTML = btn.dataset.view === 'back' ? back : front;
+    };
+  });
+
+  wrap.appendChild(toggle);
+  wrap.appendChild(stage);
   return wrap;
 }
 
 // ============================================================
-// Service Worker
+// Service Worker + auto-update
 // ============================================================
+// IMPORTANT : doit matcher CACHE_NAME dans sw.js et "version" dans version.json
+const APP_VERSION = 'v15';
+
+// Intervalle de poll pour les sessions longues (PWA ouverte des heures)
+const VERSION_POLL_MS = 5 * 60 * 1000; // 5 min
+
+let __forcingUpdate = false;
+
+async function fetchRemoteVersion() {
+  try {
+    const resp = await fetch('./version.json', { cache: 'no-store' });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return (data && typeof data.version === 'string') ? data.version : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function forceFullUpdate(reason) {
+  if (__forcingUpdate) return;
+  __forcingUpdate = true;
+  console.log('[NextRep] Force update:', reason);
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        try {
+          if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          await reg.update();
+        } catch (_) {}
+      }
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch (e) {
+    console.warn('[NextRep] forceFullUpdate error', e);
+  }
+  // Reload : avec les headers no-cache, le nouveau code sera récupéré.
+  // On ajoute un query param de cache-busting pour les rares user-agents récalcitrants.
+  const url = new URL(window.location.href);
+  url.searchParams.set('_v', Date.now().toString(36));
+  window.location.replace(url.toString());
+}
+
+async function checkVersionAndMaybeReload() {
+  const remote = await fetchRemoteVersion();
+  if (!remote) return;
+  if (remote !== APP_VERSION) {
+    await forceFullUpdate(`version.json=${remote} ≠ APP_VERSION=${APP_VERSION}`);
+  }
+}
+
 function registerSW() {
-  if (!('serviceWorker' in navigator)) return;
+  if (!('serviceWorker' in navigator)) {
+    // Pas de SW : on peut quand même comparer la version au boot
+    checkVersionAndMaybeReload();
+    return;
+  }
   window.addEventListener('load', () => {
+    // 1) Check version dès le boot (avant même que le SW soit prêt)
+    checkVersionAndMaybeReload();
+
+    // 2) Poll périodique pour les sessions longues
+    setInterval(checkVersionAndMaybeReload, VERSION_POLL_MS);
+    // Et aussi à chaque retour de l'onglet au premier plan
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkVersionAndMaybeReload();
+    });
+
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
       // Vérifie une mise à jour à chaque chargement
       reg.update().catch(() => {});
+      // Re-update aussi quand on repasse au premier plan
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
 
       // Quand un nouveau SW est installé et en attente, on l'active aussitôt
       const promote = sw => {
-        if (sw && sw.state === 'installed' && navigator.serviceWorker.controller) {
+        if (sw && sw.state === 'installed') {
+          // Même s'il n'y a pas encore de controller, skipWaiting est sûr
           sw.postMessage({ type: 'SKIP_WAITING' });
         }
       };

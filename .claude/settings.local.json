@@ -6,7 +6,20 @@
       "Bash(python _generate.py)",
       "Bash(cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\Gloock-Regular.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\" && cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\BricolageGrotesque-Regular.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\")",
       "Bash(cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\BricolageGrotesque-Bold.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\" && cp \"C:\\\\Users\\\\FA506\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\\\\GeistMono-Regular.ttf\" \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\\\\\")",
-      "PowerShell($src = \"$env:APPDATA\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\"; $dst = \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\"; New-Item -ItemType Directory -Force $dst | Out-Null; Copy-Item \"$src\\\\Gloock-Regular.ttf\",\"$src\\\\BricolageGrotesque-Regular.ttf\",\"$src\\\\BricolageGrotesque-Bold.ttf\",\"$src\\\\GeistMono-Regular.ttf\" $dst; Get-ChildItem $dst | Select-Object Name)"
+      "PowerShell($src = \"$env:APPDATA\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\07b07c6d-5806-4e6d-96e6-c96add0017df\\\\bb4f8b3d-223e-46e0-a4cd-652da9f1bc1f\\\\skills\\\\canvas-design\\\\canvas-fonts\"; $dst = \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\fonts\"; New-Item -ItemType Directory -Force $dst | Out-Null; Copy-Item \"$src\\\\Gloock-Regular.ttf\",\"$src\\\\BricolageGrotesque-Regular.ttf\",\"$src\\\\BricolageGrotesque-Bold.ttf\",\"$src\\\\GeistMono-Regular.ttf\" $dst; Get-ChildItem $dst | Select-Object Name)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api *)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/lahaxearnaud/body-highlighter/master/src/assets/index.ts\" -o \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\_body_paths.ts\")",
+      "Bash(awk 'BEGIN{skip=0} /\\\\/\\\\* LEGACY START/{skip=1; next} /LEGACY END \\\\*\\\\//{skip=0; next} !skip{print}' \"C:\\\\Users\\\\FA506\\\\OneDrive\\\\Bureau\\\\App-programme-musculation\\\\app.js\")",
+      "Bash(grep -v \"^total\\\\|^d.*\\\\.$\")",
+      "Bash(mkdir -p src/js src/css assets/fonts assets/rank-logos docs)",
+      "Bash(mv app.js auth.js ranks.js body-paths.js firebase-config.js src/js/)",
+      "Bash(mv styles.css src/css/)",
+      "Bash(mv logo_app.png icon.svg assets/)",
+      "Bash(mv fonts/* assets/fonts/)"
     ]
   }
 }

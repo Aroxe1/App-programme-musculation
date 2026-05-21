@@ -12,7 +12,7 @@
   "categories": ["fitness", "health", "lifestyle"],
   "icons": [
     {
-      "src": "logo_app.png",
+      "src": "assets/logo_app.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"

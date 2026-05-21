@@ -8,15 +8,19 @@
   <title>NextRep</title>
 
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" type="image/png" href="logo_app.png" />
-  <link rel="apple-touch-icon" href="logo_app.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" href="assets/logo_app.png" />
+  <link rel="apple-touch-icon" href="assets/logo_app.png" />
+  <link rel="stylesheet" href="src/css/styles.css" />
 </head>
 <body>
   <header class="topbar">
     <h1 id="page-title">Programmes</h1>
     <div class="topbar-actions">
       <span id="sync-indicator" class="sync-indicator" data-status="" aria-label="État de synchronisation"></span>
+      <button id="notifs-btn" class="icon-btn" type="button" aria-label="Actualités" title="Actualités">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a6 6 0 0 0-6 6v4l-2 3v1h16v-1l-2-3V8a6 6 0 0 0-6-6zm0 20a3 3 0 0 0 3-3h-6a3 3 0 0 0 3 3z" fill="currentColor"/></svg>
+        <span id="notifs-badge" class="notifs-badge" hidden></span>
+      </button>
       <button id="account-btn" class="icon-btn" type="button" aria-label="Mon compte" title="Mon compte">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-8 2-8 6v1h16v-1c0-4-4-6-8-6z" fill="currentColor"/></svg>
       </button>
@@ -59,6 +63,6 @@
     </div>
   </template>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="src/js/app.js"></script>
 </body>
 </html>
