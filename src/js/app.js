@@ -6,6 +6,9 @@
 import * as Auth from './auth.js';
 import { RANKS, RANK_ICONS, RANK_LOGOS, MUSCLE_GROUPS, computeRanks, overallRank, detectGroups } from './ranks.js';
 import { anteriorData, posteriorData } from './body-paths.js';
+import { scanBarcode, fetchProductByBarcode } from './barcode.js';
+import { openLegalModal } from './legal.js';
+import { loadExercises, searchExercises, exerciseImageUrl, FILTER_GROUPS } from './exercise-db.js';
 
 // ============================================================
 // Storage (par utilisateur)
@@ -344,6 +347,7 @@ function render() {
     case 'progress':       renderProgress(app); break;
     case 'nutrition':      renderNutrition(app); break;
     case 'profile':        renderProfile(app); break;
+    case 'exercise-library': renderExerciseLibrary(app); break;
     default:               renderPrograms(app);
   }
 }
@@ -441,6 +445,13 @@ function renderAuth(root) {
     wrap.appendChild(buildLoginForm());
   }
 
+  // Footer légal sur l'écran d'auth
+  wrap.appendChild(el('div', { class: 'auth-legal-footer' },
+    el('button', { type: 'button', class: 'link-btn', onclick: () => openLegalModal('cgu') }, 'CGU'),
+    el('span', { class: 'muted' }, ' · '),
+    el('button', { type: 'button', class: 'link-btn', onclick: () => openLegalModal('privacy') }, 'Confidentialité'),
+  ));
+
   root.appendChild(wrap);
 }
 
@@ -499,9 +510,11 @@ function buildSignupForm() {
     const email = form.querySelector('input[name=email]').value.trim();
     const pwd = form.querySelector('input[name=password]').value;
     const pwd2 = form.querySelector('input[name=password2]').value;
+    const accepted = form.querySelector('input[name=accept]').checked;
     if (!email || !pwd) { toast('Email et mot de passe requis'); return; }
     if (pwd.length < 6) { toast('Mot de passe : 6 caractères minimum'); return; }
     if (pwd !== pwd2) { toast('Les mots de passe ne correspondent pas'); return; }
+    if (!accepted) { toast('Tu dois accepter les CGU pour continuer'); return; }
     submitBtn.disabled = true;
     submitBtn.textContent = 'Création…';
     try {
@@ -529,6 +542,18 @@ function buildSignupForm() {
     el('label', {}, 'Confirmer le mot de passe'),
     el('input', { class: 'input', name: 'password2', type: 'password', autocomplete: 'new-password', required: true, minlength: '6', placeholder: '••••••••' }),
   ));
+
+  // Checkbox d'acceptation des CGU (obligatoire)
+  const acceptWrap = el('label', { class: 'accept-row' },
+    el('input', { type: 'checkbox', name: 'accept' }),
+    el('span', {},
+      'J\'accepte les ',
+      el('button', { type: 'button', class: 'link-btn', onclick: e => { e.preventDefault(); openLegalModal('cgu'); } }, 'CGU'),
+      ' et la ',
+      el('button', { type: 'button', class: 'link-btn', onclick: e => { e.preventDefault(); openLegalModal('privacy'); } }, 'Politique de confidentialité'),
+    ),
+  );
+  form.appendChild(acceptWrap);
 
   const submitBtn = el('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Créer le compte');
   form.appendChild(submitBtn);
@@ -732,9 +757,107 @@ function openAccountMenu() {
       },
     }, 'Se déconnecter'),
     el('button', {
+      class: 'btn btn-block mt-2',
+      onclick: () => { close(); navigate('exercise-library'); },
+    }, '📚 Bibliothèque d\'exercices'),
+    el('button', {
+      class: 'btn btn-block mt-2',
+      style: 'color: var(--danger); border-color: rgba(251, 113, 133, 0.3);',
+      onclick: () => { close(); openDeleteAccountFlow(); },
+    }, '⚠️ Supprimer mon compte'),
+    el('div', { class: 'account-legal-links' },
+      el('button', { type: 'button', class: 'link-btn', onclick: () => openLegalModal('cgu') }, 'CGU'),
+      el('span', { class: 'muted' }, ' · '),
+      el('button', { type: 'button', class: 'link-btn', onclick: () => openLegalModal('privacy') }, 'Confidentialité'),
+    ),
+    el('button', {
       class: 'btn btn-ghost btn-block mt-2',
       onclick: close,
     }, 'Fermer'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
+// ============================================================
+// Suppression de compte (RGPD) — double confirmation + réauth si besoin
+// ============================================================
+function openDeleteAccountFlow() {
+  const user = Auth.currentUser();
+  if (!user) return;
+
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const confirmInput = el('input', {
+    class: 'input', type: 'text', placeholder: 'SUPPRIMER',
+    autocomplete: 'off',
+  });
+  const pwdInput = el('input', {
+    class: 'input', type: 'password',
+    placeholder: 'Mot de passe (pour confirmer)',
+    autocomplete: 'current-password',
+  });
+
+  const deleteBtn = el('button', {
+    class: 'btn btn-block',
+    style: 'background: var(--danger); color: #fff; border-color: var(--danger); margin-top: 12px;',
+    onclick: async () => {
+      if (confirmInput.value.trim() !== 'SUPPRIMER') {
+        toast('Tape exactement SUPPRIMER pour confirmer'); return;
+      }
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Suppression…';
+      try {
+        // Tente direct → si requires-recent-login, on réauth puis on retente
+        try {
+          await Auth.deleteAccount();
+        } catch (err) {
+          if (err?.code === 'auth/requires-recent-login') {
+            if (!pwdInput.value) {
+              toast('Saisis ton mot de passe pour confirmer');
+              deleteBtn.disabled = false;
+              deleteBtn.textContent = 'Supprimer définitivement';
+              return;
+            }
+            await Auth.reauthWithPassword(pwdInput.value);
+            await Auth.deleteAccount();
+          } else {
+            throw err;
+          }
+        }
+        // Nettoyage local
+        clearActive();
+        try { localStorage.clear(); } catch (_) {}
+        toast('Compte supprimé');
+        close();
+        // onAuthChanged va se déclencher → écran auth
+      } catch (err) {
+        toast(humanAuthError(err));
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = 'Supprimer définitivement';
+      }
+    },
+  }, 'Supprimer définitivement');
+
+  const modal = el('div', { class: 'modal' },
+    el('h2', { style: 'color: var(--danger);' }, '⚠️ Supprimer mon compte'),
+    el('p', {}, 'Cette action est ', el('strong', {}, 'irréversible'), '.'),
+    el('p', { class: 'muted', style: 'font-size: 13px;' },
+      'Tes programmes, séances, données nutritionnelles et profil seront effacés du cloud sous 30 jours. Le compte ', el('strong', {}, user.email || ''), ' ne pourra plus se reconnecter.'),
+    el('div', { class: 'field mt-2' },
+      el('label', {}, 'Tape '), el('strong', {}, 'SUPPRIMER'), ' ci-dessous pour confirmer :',
+      confirmInput,
+    ),
+    el('div', { class: 'field' },
+      el('label', {}, 'Mot de passe (demandé si ta session est ancienne)'),
+      pwdInput,
+    ),
+    deleteBtn,
+    el('button', {
+      class: 'btn btn-ghost btn-block mt-2',
+      onclick: close,
+    }, 'Annuler'),
   );
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
@@ -859,6 +982,55 @@ function buildDashboardHero() {
       entries.length ? `${entries.length} repas` : 'Ouvrir nutrition →'),
   );
   wrap.appendChild(nutritionTile);
+
+  // Tile 3 : Streak (jours consécutifs d'entraînement)
+  const streak = computeStreak(store.sessions);
+  const streakTile = el('div', {
+    class: 'hero-tile hero-tile-streak' + (streak === 0 ? ' empty' : ''),
+    onclick: () => navigate('history'),
+  });
+  streakTile.innerHTML = `
+    <div class="streak-flame-wrap">
+      <svg class="streak-flame" viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="flameGrad" x1="50%" y1="100%" x2="50%" y2="0%">
+            <stop offset="0%" stop-color="#ff3d00"/>
+            <stop offset="40%" stop-color="#ff7a00"/>
+            <stop offset="75%" stop-color="#ffb800"/>
+            <stop offset="100%" stop-color="#ffe066"/>
+          </linearGradient>
+          <linearGradient id="flameCore" x1="50%" y1="100%" x2="50%" y2="0%">
+            <stop offset="0%" stop-color="#ffeb3b"/>
+            <stop offset="100%" stop-color="#fff6c1"/>
+          </linearGradient>
+        </defs>
+        <!-- Flamme extérieure -->
+        <path fill="url(#flameGrad)" d="M32 4
+          C 22 18, 14 26, 14 42
+          C 14 58, 22 74, 32 74
+          C 42 74, 50 58, 50 42
+          C 50 32, 44 26, 40 20
+          C 38 26, 36 28, 34 26
+          C 36 18, 34 10, 32 4 Z"/>
+        <!-- Cœur clair -->
+        <path fill="url(#flameCore)" d="M32 30
+          C 26 38, 22 46, 22 54
+          C 22 64, 26 72, 32 72
+          C 38 72, 42 64, 42 54
+          C 42 46, 38 38, 32 30 Z"/>
+      </svg>
+    </div>
+    <div class="streak-text">
+      <div class="streak-eyebrow">Série</div>
+      <div class="streak-count">${streak}</div>
+      <div class="streak-sub">${
+        streak === 0 ? 'démarre ta série' :
+        streak === 1 ? 'jour d’affilée' :
+        'jours d’affilée'
+      }</div>
+    </div>
+  `;
+  wrap.appendChild(streakTile);
 
   return wrap;
 }
@@ -1527,27 +1699,6 @@ function renderHistory(root) {
   }
 }
 
-function computeStreak(sessions) {
-  if (!sessions || !sessions.length) return 0;
-  const dates = new Set();
-  for (const s of sessions) {
-    const d = new Date(s.date);
-    dates.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
-  }
-  let streak = 0;
-  const day = new Date();
-  // Si pas de séance aujourd'hui, on autorise (le streak commence à hier)
-  const todayKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
-  if (!dates.has(todayKey)) day.setDate(day.getDate() - 1);
-  for (let i = 0; i < 365; i++) {
-    const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
-    if (dates.has(key)) streak++;
-    else break;
-    day.setDate(day.getDate() - 1);
-  }
-  return streak;
-}
-
 // ============================================================
 // View : Détail d'une séance
 // ============================================================
@@ -1863,6 +2014,141 @@ function drawLineChart(canvas, data, opts = {}) {
 // ============================================================
 // View : Profil (taille, poids, âge, activité)
 // ============================================================
+// ============================================================
+// View : Bibliothèque d'exercices (free-exercise-db, Unlicense)
+// ============================================================
+function renderExerciseLibrary(root) {
+  setTitle('Bibliothèque d\'exercices');
+  setChrome(true);
+
+  const state = { query: '', group: null, loading: true, items: [] };
+
+  // Barre de recherche
+  const searchInput = el('input', {
+    class: 'input', type: 'search', placeholder: 'Chercher un exercice…',
+    autocomplete: 'off',
+    oninput: e => { state.query = e.target.value; refresh(); },
+  });
+  root.appendChild(el('div', { class: 'field' }, searchInput));
+
+  // Filtres groupes musculaires (scroll horizontal)
+  const filterStrip = el('div', { class: 'exo-filter-strip' });
+  for (const f of FILTER_GROUPS) {
+    const chip = el('button', {
+      type: 'button',
+      class: 'exo-chip' + (state.group === f.id ? ' active' : ''),
+      onclick: () => {
+        state.group = f.id;
+        filterStrip.querySelectorAll('.exo-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        refresh();
+      },
+    }, f.label);
+    filterStrip.appendChild(chip);
+  }
+  root.appendChild(filterStrip);
+
+  // Résultats
+  const grid = el('div', { class: 'exo-grid' });
+  root.appendChild(grid);
+
+  const renderItems = () => {
+    grid.innerHTML = '';
+    if (state.loading) {
+      grid.appendChild(el('p', { class: 'muted text-center' }, 'Chargement de la bibliothèque…'));
+      return;
+    }
+    if (state.items.length === 0) {
+      grid.appendChild(el('p', { class: 'muted text-center' }, 'Aucun exercice trouvé.'));
+      return;
+    }
+    for (const ex of state.items) {
+      const card = el('button', {
+        type: 'button',
+        class: 'exo-card',
+        onclick: () => openExerciseDetail(ex),
+      });
+      const imgUrl = exerciseImageUrl(ex, 0);
+      const img = imgUrl
+        ? el('img', { class: 'exo-thumb', src: imgUrl, alt: '', loading: 'lazy' })
+        : el('div', { class: 'exo-thumb exo-thumb-empty' }, '🏋️');
+      card.appendChild(img);
+      card.appendChild(el('div', { class: 'exo-info' },
+        el('div', { class: 'exo-name' }, ex.name),
+        el('div', { class: 'exo-muscles muted' },
+          (ex.primaryMuscles || []).slice(0, 2).join(' · ')),
+      ));
+      grid.appendChild(card);
+    }
+  };
+
+  const refresh = () => {
+    state.items = searchExercises(state.query, state.group);
+    renderItems();
+  };
+
+  // Chargement initial
+  loadExercises().then(() => {
+    state.loading = false;
+    refresh();
+  }).catch(err => {
+    state.loading = false;
+    grid.innerHTML = '';
+    grid.appendChild(el('p', { class: 'muted text-center' },
+      'Impossible de charger la bibliothèque (hors-ligne ?).'));
+    console.warn('loadExercises', err);
+  });
+
+  renderItems();
+
+  // Note licence
+  root.appendChild(el('p', { class: 'muted text-center', style: 'font-size: 10px; margin-top: 24px;' },
+    'Source : free-exercise-db (Unlicense). Descriptions en anglais.'));
+}
+
+function openExerciseDetail(ex) {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const images = (ex.images || []).map((_, i) => exerciseImageUrl(ex, i)).filter(Boolean);
+  const imgRow = el('div', { class: 'exo-detail-images' });
+  for (const url of images) {
+    imgRow.appendChild(el('img', { class: 'exo-detail-img', src: url, alt: '', loading: 'lazy' }));
+  }
+
+  const meta = el('div', { class: 'exo-detail-meta' });
+  if (ex.equipment) meta.appendChild(el('span', { class: 'exo-tag' }, `🔧 ${ex.equipment}`));
+  if (ex.level)     meta.appendChild(el('span', { class: 'exo-tag' }, `📊 ${ex.level}`));
+  if (ex.force)     meta.appendChild(el('span', { class: 'exo-tag' }, `💪 ${ex.force}`));
+  if (ex.mechanic)  meta.appendChild(el('span', { class: 'exo-tag' }, `⚙️ ${ex.mechanic}`));
+
+  const musclesList = el('div', { class: 'exo-detail-section' },
+    el('h3', {}, 'Muscles ciblés'),
+    el('p', { class: 'muted' },
+      'Principaux : ' + (ex.primaryMuscles || []).join(', '),
+      (ex.secondaryMuscles?.length ? ' · Secondaires : ' + ex.secondaryMuscles.join(', ') : ''),
+    ),
+  );
+
+  const instructions = el('div', { class: 'exo-detail-section' },
+    el('h3', {}, 'Instructions'),
+    el('ol', { class: 'exo-instructions' },
+      ...(ex.instructions || []).map(step => el('li', {}, step)),
+    ),
+  );
+
+  const modal = el('div', { class: 'modal exo-detail-modal' },
+    el('h2', {}, ex.name),
+    meta,
+    imgRow,
+    musclesList,
+    instructions,
+    el('button', { class: 'btn btn-block mt-2', onclick: close }, 'Fermer'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
 function renderProfile(root) {
   setTitle('Mon profil');
   if (!store.profile) store.profile = defaultState().profile;
@@ -2016,6 +2302,40 @@ function recomputeMacros() {
 function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function dateKeyFromTs(ts) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Nombre de jours consécutifs avec au moins une séance, comptés depuis
+ * aujourd'hui (ou hier — laisse 1 jour de grâce pour ne pas casser la streak
+ * tant qu'on n'a pas dormi).
+ */
+function computeStreak(sessions) {
+  try {
+    if (!Array.isArray(sessions) || sessions.length === 0) return 0;
+    const dates = [...new Set(
+      sessions.map(s => dateKeyFromTs(s?.date)).filter(Boolean)
+    )].sort().reverse();
+    if (dates.length === 0) return 0;
+    const today = todayKey();
+    const yesterday = dateKeyFromTs(Date.now() - 86400000);
+    if (dates[0] !== today && dates[0] !== yesterday) return 0;
+    let streak = 1;
+    const cursor = new Date(dates[0] + 'T12:00:00');
+    for (let i = 1; i < dates.length; i++) {
+      cursor.setDate(cursor.getDate() - 1);
+      if (dates[i] === dateKeyFromTs(cursor.getTime())) streak++;
+      else break;
+    }
+    return streak;
+  } catch (err) {
+    console.warn('computeStreak failed', err);
+    return 0;
+  }
 }
 
 function ensureNutritionDay(dateKey) {
@@ -2249,11 +2569,50 @@ function openFoodEntry(existing, dateKey) {
     );
   };
 
+  const scanBtn = isNew ? el('button', {
+    class: 'btn btn-block', type: 'button',
+    onclick: async () => {
+      scanBtn.disabled = true;
+      const original = scanBtn.textContent;
+      scanBtn.textContent = '📷 Ouverture caméra…';
+      try {
+        const code = await scanBarcode();
+        if (!code) { scanBtn.disabled = false; scanBtn.textContent = original; return; }
+        toast('Recherche du produit…');
+        const product = await fetchProductByBarcode(code);
+        if (!product) {
+          toast('Produit non trouvé sur Open Food Facts');
+        } else {
+          entry.name = product.name;
+          entry.kcal = product.kcal;
+          entry.protein = product.protein;
+          entry.carbs = product.carbs;
+          entry.fat = product.fat;
+          // Met à jour les champs visuellement
+          modal.querySelector('input[data-field=name]').value = entry.name;
+          inputs.kcal.value = entry.kcal;
+          inputs.protein.value = entry.protein;
+          inputs.carbs.value = entry.carbs;
+          inputs.fat.value = entry.fat;
+          toast(`✓ ${product.name.slice(0, 40)}`);
+        }
+      } catch (err) {
+        if (err?.message !== 'Cancelled') toast('Scan annulé ou erreur');
+      } finally {
+        scanBtn.disabled = false;
+        scanBtn.textContent = original;
+      }
+    },
+  }, '📷 Scanner un code-barres') : null;
+
   const modal = el('div', { class: 'modal' },
     el('h2', {}, isNew ? 'Ajouter un aliment' : 'Modifier l’aliment'),
+    scanBtn,
+    isNew ? el('div', { class: 'food-or-divider' }, el('span', {}, 'ou saisis manuellement')) : null,
     el('div', { class: 'field' },
       el('label', {}, 'Nom'),
       el('input', {
+        'data-field': 'name',
         class: 'input', type: 'text', value: entry.name,
         placeholder: 'Ex : Riz complet 100g',
         oninput: e => { entry.name = e.target.value; },
@@ -2467,7 +2826,7 @@ function buildBodyDiagram(ranks) {
 // Service Worker + auto-update
 // ============================================================
 // IMPORTANT : doit matcher CACHE_NAME dans sw.js et "version" dans version.json
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v24';
 
 // Intervalle de poll pour les sessions longues (PWA ouverte des heures)
 const VERSION_POLL_MS = 5 * 60 * 1000; // 5 min

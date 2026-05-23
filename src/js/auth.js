@@ -15,12 +15,16 @@ import {
   sendEmailVerification,
   updateProfile,
   reload,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore,
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   serverTimestamp,
   persistentLocalCache,
   persistentSingleTabManager,
@@ -104,6 +108,39 @@ export async function reloadCurrentUser() {
 
 export async function signOut() {
   await fbSignOut(auth);
+}
+
+/**
+ * Supprime définitivement le compte courant.
+ *  1) Supprime le document Firestore users/{uid}
+ *  2) Supprime le compte Firebase Auth (deleteUser)
+ *
+ * Si Firebase répond "auth/requires-recent-login", il faut d'abord appeler
+ * reauthWithPassword(currentPassword) puis relancer deleteAccount().
+ */
+export async function deleteAccount() {
+  const user = auth?.currentUser;
+  if (!user) throw new Error('Aucun utilisateur connecté');
+  const uid = user.uid;
+  // 1) Document Firestore (best effort — si ça échoue on continue quand même)
+  try {
+    await deleteDoc(userDocRef(uid));
+  } catch (err) {
+    console.warn('Suppression Firestore échouée', err);
+  }
+  // 2) Compte Firebase Auth
+  await deleteUser(user);
+}
+
+/**
+ * Réauthentifie l'utilisateur avec son mot de passe.
+ * Nécessaire avant deleteAccount() si la session est ancienne.
+ */
+export async function reauthWithPassword(password) {
+  const user = auth?.currentUser;
+  if (!user || !user.email) throw new Error('Aucun utilisateur connecté');
+  const cred = EmailAuthProvider.credential(user.email, password);
+  await reauthenticateWithCredential(user, cred);
 }
 
 // ---------------------------------------------------------------

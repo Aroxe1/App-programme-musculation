@@ -6,7 +6,7 @@
  *  3) Bump "version" dans version.json (même valeur)
  *  4) firebase deploy --only hosting
  */
-const CACHE_NAME = 'nextrep-v15';
+const CACHE_NAME = 'nextrep-v24';
 const ASSETS = [
   './',
   './index.html',
@@ -16,6 +16,9 @@ const ASSETS = [
   './src/js/auth.js',
   './src/js/ranks.js',
   './src/js/body-paths.js',
+  './src/js/barcode.js',
+  './src/js/legal.js',
+  './src/js/exercise-db.js',
   './src/js/firebase-config.js',
   './assets/logo_app.png',
   './assets/fonts/Gloock-Regular.ttf',
