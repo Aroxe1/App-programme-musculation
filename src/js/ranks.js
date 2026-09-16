@@ -3,10 +3,16 @@
  * Rangs (10 niveaux du plus bas au plus haut) :
  * Bronze < Argent < Or < Platine < Diamant < Émeraude < Maître < Grand Maître < Virtuose < Dieu Grec
  *
- * Chaque groupe musculaire reçoit un rang basé sur le meilleur 1RM estimé
- * (formule d'Epley : w × (1 + r/30)) normalisé par le poids de corps.
- * Sans poids de corps renseigné, on utilise des seuils absolus en kg.
+ * Stratégie :
+ *  1) Si l'exercice correspond à un standard connu (Bench, Squat, Deadlift, etc.)
+ *     → on utilise les seuils spécifiques à cet exercice, ajustés selon le profil
+ *     (sexe, âge, taille) — données issues de strengthlevel.com
+ *  2) Sinon, fallback sur des seuils par groupe musculaire normalisés par BW
+ *  3) Sinon, seuils absolus en kg
+ *
+ * Formule 1RM estimé : Epley → w × (1 + r/30)
  */
+import { findStandardKey, adjustedThresholds } from './strength-standards.js';
 
 export const RANKS = [
   { id: 'bronze',       name: 'Bronze',       color: '#cd7f32', glow: 'rgba(205, 127, 50, 0.5)' },
@@ -98,14 +104,37 @@ const THRESHOLDS_ABS = {
   traps:      [30, 45, 60, 75, 90, 105, 120, 135, 150],
 };
 
-// Détermine le rang à partir de l'e1RM
-export function rankFor(group, e1rm, bodyweight) {
-  if (!e1rm || e1rm <= 0) return null; // pas de données → pas de rang
-  const useBw = bodyweight && bodyweight > 0;
-  const value = useBw ? e1rm / bodyweight : e1rm;
+/**
+ * Détermine le rang. Trois sources de seuils, par ordre de priorité :
+ *  1) Standards spécifiques à l'exercice (ajustés sexe/âge/taille)
+ *  2) Seuils par groupe musculaire en multiple BW
+ *  3) Seuils absolus en kg (si pas de BW)
+ */
+export function rankFor(group, e1rm, profile, exerciseName) {
+  if (!e1rm || e1rm <= 0) return null;
+  const bw = Number(profile?.weight) || 0;
+
+  // 1) Standards d'exercice spécifique
+  if (exerciseName && bw > 0) {
+    const key = findStandardKey(exerciseName);
+    if (key) {
+      const thresholds = adjustedThresholds(key, profile);
+      if (thresholds) {
+        const ratio = e1rm / bw;
+        let idx = 0;
+        for (let i = 0; i < thresholds.length; i++) {
+          if (ratio >= thresholds[i]) idx = i + 1;
+        }
+        return RANKS[Math.min(idx, RANKS.length - 1)];
+      }
+    }
+  }
+
+  // 2) Fallback : seuils par groupe musculaire
+  const useBw = bw > 0;
+  const value = useBw ? e1rm / bw : e1rm;
   const seuils = useBw ? THRESHOLDS_BW[group] : THRESHOLDS_ABS[group];
   if (!seuils) return RANKS[0];
-  // Trouve le plus haut palier dépassé
   let idx = 0;
   for (let i = 0; i < seuils.length; i++) {
     if (value >= seuils[i]) idx = i + 1;
@@ -155,7 +184,8 @@ export function detectGroups(exerciseName) {
 // Retourne { [groupId]: { rank, e1rm, exercise } }
 export function computeRanks(store) {
   const result = {};
-  const bw = Number(store.profile?.weight) || 0;
+  const profile = store.profile || {};
+  const bw = Number(profile.weight) || 0;
 
   // Index des groupes déclarés par exercice (programmes + détection auto)
   const groupsByExName = new Map();
@@ -174,13 +204,11 @@ export function computeRanks(store) {
     for (const ex of s.exercises || []) {
       const name = (ex.name || '').trim();
       if (!name) continue;
-      // Groupes : explicites sur l'exercice de la session, sinon programmes, sinon auto
       let groups = Array.isArray(ex.muscleGroups) && ex.muscleGroups.length
         ? ex.muscleGroups
         : (groupsByExName.get(name.toLowerCase()) || detectGroups(name));
       if (!groups.length) continue;
 
-      // Calcule le meilleur e1RM de cet exercice dans cette séance
       let bestE1rm = 0;
       for (const set of ex.sets || []) {
         const w = Number(set.weight) || 0;
@@ -202,7 +230,7 @@ export function computeRanks(store) {
 
   // Attribue un rang à chaque groupe trouvé
   for (const g of Object.keys(result)) {
-    result[g].rank = rankFor(g, result[g].e1rm, bw);
+    result[g].rank = rankFor(g, result[g].e1rm, profile, result[g].exercise);
     result[g].ratio = bw > 0 ? result[g].e1rm / bw : null;
   }
   return result;

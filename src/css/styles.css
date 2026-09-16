@@ -2,29 +2,14 @@
  * Verre dépoli, gradients chauds, hero tiles, pill nav flottante.
  */
 
-/* ---------- Fonts ---------- */
-@font-face {
-  font-family: 'Gloock';
-  src: url('../../assets/fonts/Gloock-Regular.ttf') format('truetype');
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Bricolage';
-  src: url('../../assets/fonts/BricolageGrotesque-Regular.ttf') format('truetype');
-  font-display: swap;
-  font-weight: 400;
-}
-@font-face {
-  font-family: 'Bricolage';
-  src: url('../../assets/fonts/BricolageGrotesque-Bold.ttf') format('truetype');
-  font-display: swap;
-  font-weight: 700;
-}
-@font-face {
-  font-family: 'GeistMono';
-  src: url('../../assets/fonts/GeistMono-Regular.ttf') format('truetype');
-  font-display: swap;
-}
+/* ---------- Fonts —  Direction « Sport / Performance »
+ * - Bebas Neue : titres condensés impactants (rang, count, headlines)
+ * - Inter      : body UI, lisible partout
+ * - JetBrains Mono : chiffres techniques (kg, kcal, dates)
+ *
+ * Fonts servies depuis Google Fonts (mis en cache par le SW au 1er load).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ---------- Design tokens ---------- */
 :root {
@@ -81,12 +66,24 @@
   --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 12px 40px rgba(255, 120, 73, 0.25);
 
-  --font-display: 'Gloock', Georgia, serif;
-  --font-ui:      'Bricolage', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono:    'GeistMono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Bebas Neue', 'Oswald', Impact, sans-serif;
+  --font-ui:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
+
+/* Bebas Neue est condensée → on lui donne un peu d'air et on majore la
+   taille typique (Bebas paraît visuellement plus petite à équivalent px) */
+[style*="font-display"],
+h1, h2, h3,
+.hero-headline,
+.rank-tile-name,
+.streak-count,
+.calorie-rem,
+.auth-title {
+  letter-spacing: 0.02em;
+}
 
 html, body {
   margin: 0;
@@ -319,6 +316,47 @@ body.no-chrome .fab { display: none; }
   background: var(--hairline);
 }
 
+/* ===== Bouton Google (style Material) ===== */
+.btn-google {
+  background: #fff;
+  color: #3c4043;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.btn-google:hover {
+  background: #f5f5f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.btn-google:active { transform: scale(0.985); }
+.btn-google .icon { margin-right: 0; }
+
+/* Séparateur "ou" entre Google et le formulaire email */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  color: var(--text-mute);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+
 /* ===== Footer légal sur l'écran d'auth ===== */
 .auth-legal-footer {
   text-align: center;
@@ -364,6 +402,263 @@ body.no-chrome .fab { display: none; }
   padding-top: 14px;
   border-top: 1px solid var(--hairline);
 }
+
+/* Labels de section dans le menu compte ("Mes données", "Gestion"...) */
+.account-section-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-mute);
+  margin: 18px 0 6px;
+  padding: 0 4px;
+}
+
+/* ===== Sélecteur de langue (compact, drapeaux + code) ===== */
+.lang-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.lang-btn {
+  flex: 1;
+  min-width: 64px;
+  background: var(--bg-glass);
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all 0.15s;
+}
+.lang-btn:hover { border-color: var(--accent); color: var(--text); }
+.lang-btn.active {
+  background: var(--grad-warm);
+  color: #fff;
+  border-color: transparent;
+}
+.lang-flag { font-size: 18px; line-height: 1; }
+.lang-code { font-family: var(--font-mono); letter-spacing: 0.04em; }
+
+/* Affiche d'où vient le rang : "via Bench Press" sous le poids */
+.rank-row-source {
+  display: block;
+  font-size: 10.5px;
+  font-style: italic;
+  margin-top: 2px;
+  opacity: 0.75;
+}
+
+/* ===== Onboarding : 3 grandes cartes (Templates / IA / Manuel) ===== */
+.onboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+.onboard-card {
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 18px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.2s;
+  font-family: inherit;
+  color: var(--text);
+}
+.onboard-card:hover { border-color: var(--accent); }
+.onboard-card:active { transform: scale(0.985); }
+.onboard-card h3 {
+  margin: 10px 0 4px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.onboard-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.onboard-card-primary {
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(59, 130, 246, 0.18), transparent 55%),
+    var(--bg-card);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+.onboard-card-ai {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(139, 92, 246, 0.18), transparent 55%),
+    var(--bg-card);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+.onboard-card .icon { color: var(--accent-2); }
+.onboard-card-ai .icon { color: #a78bfa; }
+.onboard-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #ff7a00, #ffb800);
+  color: #1a1c25;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Row "quick start" (quand l'user a déjà des programmes) */
+.quickstart-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.quickstart-row .btn { flex: 1; }
+
+/* ===== Picker de templates ===== */
+.template-picker-modal { max-width: 600px; }
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+.template-card {
+  position: relative;
+  text-align: left;
+  background: var(--bg-glass);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color 0.2s;
+}
+.template-card:hover { border-color: var(--accent); }
+.template-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline-strong);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.template-name { margin: 0 0 4px; font-size: 15px; }
+.template-desc { margin: 0 0 6px; font-size: 12.5px; line-height: 1.4; }
+.template-meta {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-mute);
+  font-family: var(--font-mono);
+}
+
+/* Programmes affichés en preview avant import */
+.template-programs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 45vh;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+.template-prog-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+.template-prog-card h4 { margin: 0 0 4px; font-size: 13px; }
+.template-prog-exos {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+/* ===== Générateur IA : rows de radio buttons ===== */
+.gen-radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.gen-radio {
+  background: var(--bg-glass);
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.gen-radio.active {
+  background: var(--grad-warm);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* ===== Galerie photos progression ===== */
+.photo-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.photo-card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.photo-img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  display: block;
+}
+.photo-date {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  text-align: center;
+}
+.photo-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.photo-delete:hover { background: rgba(251, 113, 133, 0.25); }
 
 /* ===== Modal légale (CGU / Confidentialité) ===== */
 .legal-modal { max-width: 640px; }
@@ -526,6 +821,217 @@ body.no-chrome .fab { display: none; }
   line-height: 1.6;
 }
 .exo-instructions li { margin-bottom: 8px; }
+
+/* Statut de traduction au-dessus des instructions */
+.exo-translate-status {
+  font-size: 11px;
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+/* Bouton "voir détails" sur une carte d'exo (modal picker) */
+.exo-card { position: relative; }
+.exo-card-info {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+.exo-card-info:hover { background: var(--accent); }
+
+/* Modal picker plus grande pour bien afficher la grille */
+.exo-picker-modal { max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; }
+.exo-picker-modal .exo-grid {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* ===== Icônes SVG inline (style Lucide) =====
+   Alignées avec le texte voisin, prennent la couleur du parent (currentColor). */
+.icon {
+  display: inline-block;
+  vertical-align: -0.18em; /* baseline visuel */
+  flex-shrink: 0;
+}
+/* Petit espace après une icône suivie de texte dans un bouton */
+button .icon,
+.exo-tag .icon { margin-right: 6px; }
+
+/* ===== Records personnels (PR) ===== */
+.pr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pr-card {
+  background: var(--bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 4px 12px;
+  align-items: center;
+}
+.pr-name {
+  grid-column: 1;
+  grid-row: 1;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.2;
+}
+.pr-stats {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  text-align: right;
+}
+.pr-stat-main {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.pr-weight {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+.pr-unit {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+.pr-reps {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.pr-e1rm {
+  font-size: 11px;
+  color: var(--accent-2);
+  margin-top: 2px;
+}
+.pr-date {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+/* Toast PR celebratory */
+.pr-toast {
+  position: fixed;
+  top: calc(var(--safe-top) + var(--top-h) + 12px);
+  left: 50%;
+  transform: translate(-50%, -20px);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5000;
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pr-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.pr-toast-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background:
+    radial-gradient(120% 90% at 0% 50%, rgba(255, 184, 0, 0.25), transparent 60%),
+    rgba(20, 22, 32, 0.95);
+  border: 1px solid rgba(255, 184, 0, 0.45);
+  box-shadow: 0 16px 50px rgba(255, 122, 0, 0.35);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: var(--text);
+  min-width: 280px;
+}
+.pr-toast-inner > .icon {
+  color: #ffb800;
+  filter: drop-shadow(0 0 12px rgba(255, 184, 0, 0.6));
+}
+.pr-toast-title {
+  font-weight: 700;
+  font-size: 14px;
+  background: linear-gradient(135deg, #ff7a00 0%, #ffb800 60%, #ffe066 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.pr-toast-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.pr-toast-delta {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  background: rgba(255, 184, 0, 0.15);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: #ffd060;
+}
+
+/* Prévisualisation d'un programme importé */
+.import-program-preview {
+  background: var(--bg-glass);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 10px 0 14px;
+}
+.import-program-preview h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+.import-exo-list {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ===== Row d'actions secondaires sur la page édition programme ===== */
+.program-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+.btn-icon-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  flex: 1;
+  justify-content: center;
+}
 
 .topbar-actions {
   display: flex;
@@ -724,6 +1230,20 @@ body.no-chrome .topbar-actions .sync-indicator { visibility: hidden; }
   gap: 12px;
   margin-bottom: 18px;
 }
+/* Sur petit écran (mobile portrait), on empile en 1 colonne pour avoir
+   plus de place au texte (rang "Grand Maître" / "À débloquer" sans coupure) */
+@media (max-width: 520px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "rank"
+      "nutrition"
+      "streak";
+  }
+  .hero-tile.hero-tile-streak {
+    min-height: 80px;
+  }
+}
 .hero-tile-rank { grid-area: rank; }
 .hero-tile-glass:not(.hero-tile-streak) { grid-area: nutrition; }
 .hero-tile.hero-tile-streak {
@@ -858,10 +1378,13 @@ body.no-chrome .topbar-actions .sync-indicator { visibility: hidden; }
 .rank-tile-name {
   color: var(--rank-color, var(--text)) !important;
   text-shadow: 0 0 18px var(--rank-glow, transparent);
-  font-size: clamp(18px, 5vw, 24px) !important;
+  font-size: clamp(18px, 5vw, 26px) !important;
   line-height: 1.1;
-  word-break: break-word;
-  hyphens: auto;
+  /* On laisse le navigateur wrap entre les mots mais on évite la coupure
+     de mots qui donnait "débloquer" sur 2 lignes */
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 .hero-tile-rank.empty .rank-tile-name {
   color: var(--text-dim) !important;
@@ -1448,7 +1971,10 @@ body.no-chrome .topbar-actions .sync-indicator { visibility: hidden; }
 .text-center { text-align: center; }
 .mb-0 { margin-bottom: 0; }
 .mb-2 { margin-bottom: 16px; }
+.mt-1 { margin-top: 8px; }
 .mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.mt-4 { margin-top: 32px; }
 .hidden { display: none !important; }
 
 /* ---------- Écran d'authentification ---------- */
@@ -1476,7 +2002,9 @@ body.no-chrome .topbar-actions .sync-indicator { visibility: hidden; }
   font-family: var(--font-ui);
   font-size: 42px;
   font-weight: 700;
-  margin: 0 0 8px;
+  /* margin-top négatif pour remonter le titre vers le logo (qui a beaucoup
+     de padding visuel à cause du drop-shadow / contenu transparent) */
+  margin: -56px 0 8px;
   letter-spacing: -0.025em;
   background: var(--grad-warm);
   -webkit-background-clip: text;

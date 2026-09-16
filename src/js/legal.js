@@ -7,7 +7,7 @@
 
 const APP_NAME = 'NextRep';
 const PUBLISHER = 'NextRep';
-const CONTACT_EMAIL = 'contact@nextrep.app'; // ⚠️ à remplacer par ton email réel
+const CONTACT_EMAIL = 'nextrep.appfr@gmail.com';
 const LAST_UPDATED = '23 mai 2026';
 
 export const CGU = `

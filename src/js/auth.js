@@ -18,6 +18,8 @@ import {
   deleteUser,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore,
@@ -88,6 +90,19 @@ export async function signUp(email, password, displayName) {
 
 export async function signIn(email, password) {
   const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user;
+}
+
+/**
+ * Connexion via Google (popup).
+ * Le compte est créé automatiquement si nouveau, sinon connexion normale.
+ * L'email est toujours considéré comme vérifié pour les comptes Google.
+ */
+export async function signInWithGoogle() {
+  const provider = new GoogleAuthProvider();
+  // Force le sélecteur de compte (sinon Google réutilise auto le dernier compte)
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const cred = await signInWithPopup(auth, provider);
   return cred.user;
 }
 

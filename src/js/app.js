@@ -9,6 +9,17 @@ import { anteriorData, posteriorData } from './body-paths.js';
 import { scanBarcode, fetchProductByBarcode } from './barcode.js';
 import { openLegalModal } from './legal.js';
 import { loadExercises, searchExercises, exerciseImageUrl, FILTER_GROUPS } from './exercise-db.js';
+import {
+  translateName, translateMuscle, translateEquipment, translateLevel,
+  translateForce, translateMechanic, translateCategory, translateInstructions,
+} from './exercise-i18n.js';
+import { icon, iconEl } from './icons.js';
+import { computePersonalRecords, checkPRBeaten, estimate1RM } from './records.js';
+import { buildShareUrl, shareOrCopy, checkIncomingShareLink } from './share.js';
+import { TEMPLATE_PACKS } from './program-templates.js';
+import { generatePrograms, labelGoal, labelLevel } from './program-generator.js';
+import { compressImage, addPhoto, listPhotos, deletePhoto, blobUrl } from './progress-photos.js';
+import { t, getLang, setLang, AVAILABLE_LANGUAGES } from './i18n.js';
 
 // ============================================================
 // Storage (par utilisateur)
@@ -197,9 +208,28 @@ function setActiveNav() {
 }
 
 // ============================================================
+// Applique les traductions à tous les éléments avec data-i18n / data-i18n-aria
+// ============================================================
+function applyI18n(root = document) {
+  // textContent : <span data-i18n="nav.programs">Programmes</span>
+  root.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // aria-label : <button data-i18n-aria="nav.programs">
+  root.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  });
+  // title : <button data-i18n-title="...">
+  root.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.setAttribute('title', t(el.dataset.i18nTitle));
+  });
+}
+
+// ============================================================
 // Bootstrap
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  applyI18n(); // ← traduit tous les éléments statiques du HTML
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => navigate(btn.dataset.route));
   });
@@ -318,6 +348,11 @@ async function enterVerifiedUser(user) {
     cloudReady = true;
     toast('Données chargées depuis le cache (hors-ligne)');
   }
+
+  // Détecte un éventuel lien de partage #share/...
+  checkIncomingShareLink().then(payload => {
+    if (payload) openImportProgramModal(payload);
+  });
 }
 
 // ============================================================
@@ -348,6 +383,8 @@ function render() {
     case 'nutrition':      renderNutrition(app); break;
     case 'profile':        renderProfile(app); break;
     case 'exercise-library': renderExerciseLibrary(app); break;
+    case 'records':        renderPersonalRecords(app); break;
+    case 'progress-photos': renderProgressPhotos(app); break;
     default:               renderPrograms(app);
   }
 }
@@ -361,10 +398,16 @@ function showFab(label, onClick) {
   fab.onclick = onClick;
 }
 
-function emptyState(icon, title, hint, ctaLabel, ctaOnClick) {
+function emptyState(iconContent, title, hint, ctaLabel, ctaOnClick) {
   const tpl = $('#tpl-empty').content.cloneNode(true);
   const root = tpl.querySelector('.empty');
-  root.querySelector('.empty-icon').textContent = icon;
+  const iconNode = root.querySelector('.empty-icon');
+  // Si c'est du HTML (SVG), on l'injecte ; sinon textContent (emoji/text)
+  if (typeof iconContent === 'string' && iconContent.startsWith('<')) {
+    iconNode.innerHTML = iconContent;
+  } else {
+    iconNode.textContent = iconContent;
+  }
   root.querySelector('.empty-title').textContent = title;
   root.querySelector('.empty-hint').textContent = hint;
   if (ctaLabel) {
@@ -397,7 +440,7 @@ function renderConfigError(message) {
   setTitle('Configuration requise');
   setChrome(false);
   app.appendChild(el('div', { class: 'auth-screen' },
-    el('div', { class: 'empty-icon' }, '🔧'),
+    el('div', { class: 'empty-icon', html: icon('wrench', 48) }),
     el('h2', { style: 'margin: 8px 0;' }, 'Firebase n’est pas configuré'),
     el('p', { class: 'muted text-center', style: 'max-width: 360px;' }, message || ''),
     el('p', { class: 'muted text-center', style: 'max-width: 360px;' },
@@ -438,6 +481,26 @@ function renderAuth(root) {
     }, 'Inscription'),
   );
   wrap.appendChild(tabs);
+
+  // Bouton "Continuer avec Google" (au-dessus des formulaires)
+  const googleBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-block btn-google mt-2',
+    html: `${icon('google', 18)} <span>Continuer avec Google</span>`,
+    onclick: async () => {
+      googleBtn.disabled = true;
+      try {
+        await Auth.signInWithGoogle();
+      } catch (err) {
+        if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+          toast(humanAuthError(err));
+        }
+        googleBtn.disabled = false;
+      }
+    },
+  });
+  wrap.appendChild(googleBtn);
+  wrap.appendChild(el('div', { class: 'auth-divider' }, el('span', {}, 'ou')));
 
   if (tab === 'signup') {
     wrap.appendChild(buildSignupForm());
@@ -661,10 +724,10 @@ function humanAuthError(err) {
 // Le badge rouge sur le bouton apparaît tant qu'au moins une actualité n'est pas lue.
 const NEWS_FEED = [
   {
-    id: '2026-05-20-addNotification',
+    id: '2026-05-23-launch',
     title: 'Bienvenue sur NextRep 🎉',
-    date: '20 mai 2026',
-    body: "Ajout des notifications au sein de l'application !",
+    date: '23 mai 2026',
+    body: "NextRep est enfin la ! L'app de muscu qui transforme chaque rep en progression : programmes, suivi nutrition, records auto, rangs de Bronze à Dieu Grec. On compte sur toi pour progresser 💪",
   },
 ];
 
@@ -718,6 +781,91 @@ function openNotificationsPanel() {
   document.body.appendChild(backdrop);
 }
 
+// ============================================================
+// Export RGPD — toutes les données utilisateur en un JSON
+// ============================================================
+function exportUserDataAsJson() {
+  const user = Auth.currentUser();
+  if (!user) { toast('Pas connecté'); return; }
+
+  // On force d'abord un flush vers Firestore pour que l'export reflète
+  // l'état le plus à jour (sinon des modifs récentes pending pourraient manquer)
+  Auth.flush().catch(() => {});
+
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    format: 'nextrep-export-v1',
+    account: {
+      uid: user.uid,
+      email: user.email || null,
+      displayName: user.displayName || null,
+      emailVerified: !!user.emailVerified,
+      createdAt: user.metadata?.creationTime || null,
+      lastSignInAt: user.metadata?.lastSignInTime || null,
+    },
+    data: {
+      programs:     store.programs     || [],
+      sessions:     store.sessions     || [],
+      activeSession: store.activeSession || null,
+      lastProgramId: store.lastProgramId || null,
+      profile:      store.profile      || {},
+      macroTargets: store.macroTargets || {},
+      nutritionLog: store.nutritionLog || {},
+      savedFoods:   store.savedFoods   || [],
+    },
+    meta: {
+      totalPrograms: (store.programs || []).length,
+      totalSessions: (store.sessions || []).length,
+      totalNutritionDays: Object.keys(store.nutritionLog || {}).length,
+    },
+  };
+
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  // Nom de fichier horodaté : nextrep-export-2026-05-23.json
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const filename = `nextrep-export-${stamp}.json`;
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
+
+  toast(`Export prêt : ${filename}`);
+}
+
+/** Row de boutons compacts pour choisir la langue (drapeau + code). */
+function buildLanguageSelector() {
+  const current = getLang();
+  const row = el('div', { class: 'lang-row' });
+  for (const lang of AVAILABLE_LANGUAGES) {
+    const btn = el('button', {
+      type: 'button',
+      class: 'lang-btn' + (current === lang.code ? ' active' : ''),
+      title: lang.label,
+      html: `<span class="lang-flag">${lang.flag}</span><span class="lang-code">${lang.code.toUpperCase()}</span>`,
+      onclick: () => {
+        if (lang.code === getLang()) return;
+        setLang(lang.code);
+        toast(`✓ ${lang.label}`);
+        // Recharge la page pour appliquer partout (plus simple que re-rendre)
+        setTimeout(() => location.reload(), 400);
+      },
+    });
+    row.appendChild(btn);
+  }
+  return row;
+}
+
 function openAccountMenu() {
   const user = Auth.currentUser();
   if (!user) return;
@@ -730,19 +878,57 @@ function openAccountMenu() {
     el('p', { class: 'muted', style: 'margin: 0 0 4px;' },
       user.displayName ? `Connecté en tant que ${user.displayName}` : 'Connecté'),
     el('p', { class: 'muted', style: 'margin: 0 0 16px; font-size: 13px;' }, user.email || ''),
+    // ===== Groupe 1 : Mes infos perso (action principale) =====
     el('button', {
       class: 'btn btn-primary btn-block',
+      html: `${icon('user', 16)} Mon profil (taille, poids…)`,
       onclick: () => { close(); navigate('profile'); },
-    }, '👤 Mon profil (taille, poids…)'),
+    }),
+
+    // ===== Sélecteur de langue =====
+    el('div', { class: 'account-section-label' }, 'Langue'),
+    buildLanguageSelector(),
+
+    // ===== Groupe 2 : Mes données fitness =====
+    el('div', { class: 'account-section-label' }, 'Mes données'),
     el('button', {
-      class: 'btn btn-block mt-2',
+      class: 'btn btn-block',
+      html: `${icon('trophy', 16)} Mes records`,
+      onclick: () => { close(); navigate('records'); },
+    }),
+    el('button', {
+      class: 'btn btn-block mt-1',
+      html: `${icon('library', 16)} Bibliothèque d'exercices`,
+      onclick: () => { close(); navigate('exercise-library'); },
+    }),
+    el('button', {
+      class: 'btn btn-block mt-1',
+      html: `${icon('camera', 16)} Photos de progression`,
+      onclick: () => { close(); navigate('progress-photos'); },
+    }),
+
+    // ===== Groupe 3 : Gestion des données =====
+    el('div', { class: 'account-section-label' }, 'Gestion'),
+    el('button', {
+      class: 'btn btn-block',
+      html: `${icon('send', 16)} Exporter mes données (JSON)`,
+      onclick: () => { exportUserDataAsJson(); },
+    }),
+    el('button', {
+      class: 'btn btn-block mt-1',
+      html: `${icon('refresh', 16)} Forcer la synchronisation`,
       onclick: async () => {
         await Auth.flush();
         toast('Synchronisé');
       },
-    }, '⟳ Forcer la synchronisation'),
+    }),
+
+    // ===== Groupe 4 : Session / Compte (actions critiques) =====
+    el('div', { class: 'account-section-label' }, 'Compte'),
     el('button', {
-      class: 'btn btn-danger btn-block mt-2',
+      class: 'btn btn-block',
+      style: 'color: var(--danger); border-color: rgba(251, 113, 133, 0.3);',
+      html: `${icon('logout', 16)} Se déconnecter`,
       onclick: () => {
         confirmDialog('Se déconnecter ? Tes données restent sauvegardées dans le cloud.', async () => {
           close();
@@ -755,16 +941,14 @@ function openAccountMenu() {
           }
         });
       },
-    }, 'Se déconnecter'),
+    }),
     el('button', {
-      class: 'btn btn-block mt-2',
-      onclick: () => { close(); navigate('exercise-library'); },
-    }, '📚 Bibliothèque d\'exercices'),
-    el('button', {
-      class: 'btn btn-block mt-2',
+      class: 'btn btn-block mt-1',
       style: 'color: var(--danger); border-color: rgba(251, 113, 133, 0.3);',
+      html: `${icon('warning', 16)} Supprimer mon compte`,
       onclick: () => { close(); openDeleteAccountFlow(); },
-    }, '⚠️ Supprimer mon compte'),
+    }),
+
     el('div', { class: 'account-legal-links' },
       el('button', { type: 'button', class: 'link-btn', onclick: () => openLegalModal('cgu') }, 'CGU'),
       el('span', { class: 'muted' }, ' · '),
@@ -841,7 +1025,7 @@ function openDeleteAccountFlow() {
   }, 'Supprimer définitivement');
 
   const modal = el('div', { class: 'modal' },
-    el('h2', { style: 'color: var(--danger);' }, '⚠️ Supprimer mon compte'),
+    el('h2', { style: 'color: var(--danger); display: flex; align-items: center; gap: 8px;', html: `${icon('warning', 20)} <span>Supprimer mon compte</span>` }),
     el('p', {}, 'Cette action est ', el('strong', {}, 'irréversible'), '.'),
     el('p', { class: 'muted', style: 'font-size: 13px;' },
       'Tes programmes, séances, données nutritionnelles et profil seront effacés du cloud sous 30 jours. Le compte ', el('strong', {}, user.email || ''), ' ne pourra plus se reconnecter.'),
@@ -877,14 +1061,16 @@ function renderPrograms(root) {
 
   if (store.programs.length === 0) {
     root.appendChild(emptyState(
-      '📋',
+      icon('clipboard', 48),
       'Aucun programme',
-      'Crée ton premier programme de musculation pour commencer.',
-      'Créer un programme',
-      () => createProgram(),
+      'Démarre vite avec un programme tout fait, génère-le avec l\'IA, ou crée-le toi-même.',
     ));
+    // 3 grandes cartes : Templates / IA / Manuel
+    root.appendChild(buildOnboardingActions());
     return;
   }
+  // Si déjà des programmes : on garde 2 boutons discrets en haut
+  root.appendChild(buildQuickStartRow());
 
   root.appendChild(el('h2', { class: 'section-title' },
     el('span', {}, 'Mes programmes'),
@@ -1096,23 +1282,17 @@ function renderProgramEdit(root, programId) {
 
   renderExercises();
 
+  // ➕ Bouton unique "Ajouter" → modal choix bibliothèque / manuel
   root.appendChild(el('button', {
     class: 'btn btn-block mt-2',
-    onclick: () => {
-      program.exercises.push({
-        id: uid(),
-        name: '',
-        sets: 3,
-        reps: 10,
-        restSeconds: 90,
-      });
-      saveState();
-      renderExercises();
-    },
-  }, '+ Ajouter un exercice'));
+    html: `${icon('plus', 16)} Ajouter un exercice`,
+    onclick: () => openAddExerciseChoice(program, renderExercises),
+  }));
 
+  // ▶ Action principale isolée et bien visible
   root.appendChild(el('button', {
-    class: 'btn btn-primary btn-block mt-2',
+    class: 'btn btn-primary btn-block mt-3',
+    html: `${icon('play', 16)} Démarrer une séance`,
     onclick: () => {
       if (program.exercises.length === 0) {
         toast('Ajoute au moins un exercice avant de démarrer');
@@ -1120,24 +1300,96 @@ function renderProgramEdit(root, programId) {
       }
       startSessionFromProgram(program.id);
     },
-  }, '▶ Démarrer une séance'));
+  }));
 
-  root.appendChild(el('button', {
-    class: 'btn btn-danger btn-block mt-2',
-    onclick: () => {
-      confirmDialog(`Supprimer définitivement « ${program.name} » ? (Les séances déjà enregistrées sont conservées.)`, () => {
-        store.programs = store.programs.filter(p => p.id !== program.id);
+  // 🔘 Actions secondaires : row compacte d'icônes (partager, supprimer)
+  root.appendChild(el('div', { class: 'program-edit-actions mt-3' },
+    el('button', {
+      class: 'btn btn-ghost btn-icon-text',
+      html: `${icon('send', 16)} <span>Partager</span>`,
+      onclick: async () => {
+        if (!program.name?.trim()) { toast('Donne un nom au programme avant de partager'); return; }
+        if (program.exercises.length === 0) { toast('Programme vide — ajoute des exercices'); return; }
+        try {
+          const url = await buildShareUrl(program);
+          const result = await shareOrCopy(url, program.name);
+          if (result === 'copied') toast('Lien copié dans le presse-papier');
+          else if (result === 'shared') toast('Partagé ✓');
+          else if (result === 'fallback') openShareFallbackModal(url);
+        } catch (err) {
+          toast('Erreur de partage');
+          console.warn(err);
+        }
+      },
+    }),
+    el('button', {
+      class: 'btn btn-ghost btn-icon-text',
+      style: 'color: var(--danger);',
+      html: `${icon('trash', 16)} <span>Supprimer</span>`,
+      onclick: () => {
+        confirmDialog(`Supprimer définitivement « ${program.name} » ? (Les séances déjà enregistrées sont conservées.)`, () => {
+          store.programs = store.programs.filter(p => p.id !== program.id);
+          saveState();
+          toast('Programme supprimé');
+          navigate('programs');
+        });
+      },
+    }),
+  ));
+}
+
+/**
+ * Modal de choix pour l'ajout d'exercice : bibliothèque ou manuel.
+ * Évite de pourrir la page avec 2 gros boutons.
+ */
+function openAddExerciseChoice(program, refresh) {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const modal = el('div', { class: 'modal' },
+    el('h2', {}, 'Ajouter un exercice'),
+    el('p', { class: 'muted', style: 'margin-top: 0; font-size: 13px;' },
+      'Choisis comment ajouter ton exercice :'),
+    el('button', {
+      class: 'btn btn-primary btn-block mt-2',
+      html: `${icon('library', 16)} Depuis la bibliothèque`,
+      onclick: () => {
+        close();
+        openExercisePicker(picked => {
+          program.exercises.push({
+            id: uid(),
+            name: translateName(picked.name),
+            sets: 3,
+            reps: 10,
+            restSeconds: 90,
+            libraryRef: { id: picked.id, name: picked.name },
+          });
+          saveState();
+          refresh();
+          toast(`+ ${translateName(picked.name)}`);
+        });
+      },
+    }),
+    el('button', {
+      class: 'btn btn-block mt-2',
+      html: `${icon('plus', 16)} Saisir manuellement`,
+      onclick: () => {
+        program.exercises.push({
+          id: uid(),
+          name: '',
+          sets: 3,
+          reps: 10,
+          restSeconds: 90,
+        });
         saveState();
-        toast('Programme supprimé');
-        navigate('programs');
-      });
-    },
-  }, 'Supprimer le programme'));
-
-  root.appendChild(el('button', {
-    class: 'btn btn-ghost btn-block mt-2',
-    onclick: () => navigate('programs'),
-  }, '← Retour'));
+        refresh();
+        close();
+      },
+    }),
+    el('button', { class: 'btn btn-ghost btn-block mt-2', onclick: close }, 'Annuler'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
 }
 
 function buildExerciseCard(program, ex, idx, refresh) {
@@ -1247,7 +1499,7 @@ function renderSessionPick(root) {
 
   if (store.programs.length === 0) {
     root.appendChild(emptyState(
-      '🏋️',
+      icon('barbell', 48),
       'Aucun programme',
       'Crée un programme avant de pouvoir démarrer une séance.',
       'Créer un programme',
@@ -1500,9 +1752,18 @@ function renderSessionActive(root) {
           onclick: () => {
             set.done = !set.done;
             if (set.done) {
+              // ⚠️ On NE remplace PAS les champs vides par les valeurs cibles
+              // sinon une série cochée sans reps saisies polluerait les stats
+              // (ex : 100 kg auto-tagué à targetReps=10 → faux e1RM de 133 kg)
               if (set.weight === '' || set.weight == null) set.weight = '0';
-              if (set.reps === '' || set.reps == null) set.reps = String(ex.targetReps);
+              if (set.reps === '' || set.reps == null) set.reps = '0';
               startRestTimer(ex.restSeconds);
+              // Vérifie si on bat un PR (sur les sessions PASSÉES seulement)
+              const prevPR = checkPRBeaten(ex.name, set.weight, set.reps, store.sessions);
+              if (prevPR) {
+                const newE1rm = Math.round(estimate1RM(set.weight, set.reps) * 10) / 10;
+                showPRToast(ex.name, set.weight, set.reps, newE1rm, prevPR.e1rm);
+              }
             }
             saveState();
             render();
@@ -1542,8 +1803,9 @@ function renderSessionActive(root) {
 
   root.appendChild(el('button', {
     class: 'btn btn-primary btn-block mt-2',
+    html: `${icon('check', 16)} Terminer la séance`,
     onclick: () => finishActiveSession(),
-  }, '✓ Terminer la séance'));
+  }));
 
   root.appendChild(el('button', {
     class: 'btn btn-danger btn-block mt-2',
@@ -2071,12 +2333,12 @@ function renderExerciseLibrary(root) {
       const imgUrl = exerciseImageUrl(ex, 0);
       const img = imgUrl
         ? el('img', { class: 'exo-thumb', src: imgUrl, alt: '', loading: 'lazy' })
-        : el('div', { class: 'exo-thumb exo-thumb-empty' }, '🏋️');
+        : el('div', { class: 'exo-thumb exo-thumb-empty', html: icon('barbell', 32) });
       card.appendChild(img);
       card.appendChild(el('div', { class: 'exo-info' },
-        el('div', { class: 'exo-name' }, ex.name),
+        el('div', { class: 'exo-name' }, translateName(ex.name)),
         el('div', { class: 'exo-muscles muted' },
-          (ex.primaryMuscles || []).slice(0, 2).join(' · ')),
+          (ex.primaryMuscles || []).slice(0, 2).map(translateMuscle).join(' · ')),
       ));
       grid.appendChild(card);
     }
@@ -2103,10 +2365,10 @@ function renderExerciseLibrary(root) {
 
   // Note licence
   root.appendChild(el('p', { class: 'muted text-center', style: 'font-size: 10px; margin-top: 24px;' },
-    'Source : free-exercise-db (Unlicense). Descriptions en anglais.'));
+    'Source : free-exercise-db (Unlicense). Instructions traduites via MyMemory.'));
 }
 
-function openExerciseDetail(ex) {
+function openExerciseDetail(ex, onPick) {
   const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
   const close = () => backdrop.remove();
 
@@ -2117,36 +2379,700 @@ function openExerciseDetail(ex) {
   }
 
   const meta = el('div', { class: 'exo-detail-meta' });
-  if (ex.equipment) meta.appendChild(el('span', { class: 'exo-tag' }, `🔧 ${ex.equipment}`));
-  if (ex.level)     meta.appendChild(el('span', { class: 'exo-tag' }, `📊 ${ex.level}`));
-  if (ex.force)     meta.appendChild(el('span', { class: 'exo-tag' }, `💪 ${ex.force}`));
-  if (ex.mechanic)  meta.appendChild(el('span', { class: 'exo-tag' }, `⚙️ ${ex.mechanic}`));
+  if (ex.equipment) meta.appendChild(el('span', { class: 'exo-tag', html: `${icon('wrench', 13)} ${translateEquipment(ex.equipment)}` }));
+  if (ex.level)     meta.appendChild(el('span', { class: 'exo-tag', html: `${icon('chart', 13)} ${translateLevel(ex.level)}` }));
+  if (ex.force)     meta.appendChild(el('span', { class: 'exo-tag', html: `${icon('dumbbell', 13)} ${translateForce(ex.force)}` }));
+  if (ex.mechanic)  meta.appendChild(el('span', { class: 'exo-tag', html: `${icon('cog', 13)} ${translateMechanic(ex.mechanic)}` }));
+  if (ex.category)  meta.appendChild(el('span', { class: 'exo-tag', html: `${icon('tag', 13)} ${translateCategory(ex.category)}` }));
 
   const musclesList = el('div', { class: 'exo-detail-section' },
     el('h3', {}, 'Muscles ciblés'),
     el('p', { class: 'muted' },
-      'Principaux : ' + (ex.primaryMuscles || []).join(', '),
-      (ex.secondaryMuscles?.length ? ' · Secondaires : ' + ex.secondaryMuscles.join(', ') : ''),
+      'Principaux : ' + (ex.primaryMuscles || []).map(translateMuscle).join(', '),
+      (ex.secondaryMuscles?.length ? ' · Secondaires : ' + ex.secondaryMuscles.map(translateMuscle).join(', ') : ''),
     ),
   );
 
-  const instructions = el('div', { class: 'exo-detail-section' },
-    el('h3', {}, 'Instructions'),
-    el('ol', { class: 'exo-instructions' },
-      ...(ex.instructions || []).map(step => el('li', {}, step)),
-    ),
+  // Instructions : on affiche d'abord l'anglais (instant), puis on traduit en arrière-plan
+  const instrList = el('ol', { class: 'exo-instructions' },
+    ...(ex.instructions || []).map(step => el('li', {}, step)),
   );
+  const instrStatus = el('div', { class: 'exo-translate-status muted', html: `${icon('globe', 12)} Traduction en cours…` });
+
+  const instructionsSection = el('div', { class: 'exo-detail-section' },
+    el('h3', {}, 'Instructions'),
+    instrStatus,
+    instrList,
+  );
+
+  // Traduit en arrière-plan
+  if (ex.instructions?.length) {
+    translateInstructions(ex.instructions).then(translated => {
+      instrList.innerHTML = '';
+      for (const step of translated) instrList.appendChild(el('li', {}, step));
+      instrStatus.innerHTML = `${icon('globe', 12)} Traduit du Free Exercise Database`;
+    }).catch(() => {
+      instrStatus.innerHTML = `${icon('warning', 12)} Traduction indisponible — version originale ci-dessous`;
+    });
+  } else {
+    instrStatus.remove();
+  }
+
+  // Bouton "Choisir cet exercice" si appelé depuis le sélecteur
+  const pickBtn = onPick ? el('button', {
+    class: 'btn btn-primary btn-block mt-2',
+    html: `${icon('check', 16)} Choisir cet exercice`,
+    onclick: () => { onPick(ex); close(); },
+  }) : null;
 
   const modal = el('div', { class: 'modal exo-detail-modal' },
-    el('h2', {}, ex.name),
+    el('h2', {}, translateName(ex.name)),
     meta,
     imgRow,
     musclesList,
-    instructions,
+    instructionsSection,
+    pickBtn,
     el('button', { class: 'btn btn-block mt-2', onclick: close }, 'Fermer'),
   );
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
+}
+
+/**
+ * Modal de sélection d'exercice depuis la bibliothèque.
+ * Appelle onPick(exercise) quand l'utilisateur valide un choix.
+ */
+function openExercisePicker(onPick) {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const state = { query: '', group: null, loading: true, items: [] };
+
+  const searchInput = el('input', {
+    class: 'input', type: 'search', placeholder: 'Chercher un exercice…',
+    autocomplete: 'off',
+    oninput: e => { state.query = e.target.value; refresh(); },
+  });
+
+  const filterStrip = el('div', { class: 'exo-filter-strip' });
+  for (const f of FILTER_GROUPS) {
+    const chip = el('button', {
+      type: 'button',
+      class: 'exo-chip' + (state.group === f.id ? ' active' : ''),
+      onclick: () => {
+        state.group = f.id;
+        filterStrip.querySelectorAll('.exo-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        refresh();
+      },
+    }, f.label);
+    filterStrip.appendChild(chip);
+  }
+
+  const grid = el('div', { class: 'exo-grid' });
+
+  const renderItems = () => {
+    grid.innerHTML = '';
+    if (state.loading) {
+      grid.appendChild(el('p', { class: 'muted text-center' }, 'Chargement…'));
+      return;
+    }
+    if (state.items.length === 0) {
+      grid.appendChild(el('p', { class: 'muted text-center' }, 'Aucun résultat.'));
+      return;
+    }
+    for (const ex of state.items) {
+      const card = el('button', {
+        type: 'button',
+        class: 'exo-card',
+        onclick: () => {
+          // Si clic court → ajoute direct. Pour voir détails avant, on a un long press
+          // mais ici on simplifie : clic = choisir, bouton "détails" = voir
+          onPick(ex);
+          close();
+        },
+      });
+      const imgUrl = exerciseImageUrl(ex, 0);
+      const img = imgUrl
+        ? el('img', { class: 'exo-thumb', src: imgUrl, alt: '', loading: 'lazy' })
+        : el('div', { class: 'exo-thumb exo-thumb-empty', html: icon('barbell', 32) });
+      card.appendChild(img);
+      card.appendChild(el('div', { class: 'exo-info' },
+        el('div', { class: 'exo-name' }, translateName(ex.name)),
+        el('div', { class: 'exo-muscles muted' },
+          (ex.primaryMuscles || []).slice(0, 2).map(translateMuscle).join(' · ')),
+      ));
+      // Bouton "voir détails" séparé (i)
+      const infoBtn = el('button', {
+        type: 'button',
+        class: 'exo-card-info',
+        onclick: e => { e.stopPropagation(); openExerciseDetail(ex, picked => { onPick(picked); close(); }); },
+      }, 'ⓘ');
+      card.appendChild(infoBtn);
+      grid.appendChild(card);
+    }
+  };
+
+  const refresh = () => {
+    state.items = searchExercises(state.query, state.group);
+    renderItems();
+  };
+
+  loadExercises().then(() => {
+    state.loading = false;
+    refresh();
+  }).catch(() => {
+    state.loading = false;
+    grid.innerHTML = '';
+    grid.appendChild(el('p', { class: 'muted text-center' }, 'Bibliothèque indisponible (hors-ligne ?).'));
+  });
+
+  renderItems();
+
+  const modal = el('div', { class: 'modal exo-picker-modal' },
+    el('h2', {}, 'Choisir un exercice'),
+    el('div', { class: 'field' }, searchInput),
+    filterStrip,
+    grid,
+    el('button', { class: 'btn btn-block mt-2', onclick: close }, 'Annuler'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
+// ============================================================
+// Toast celebratory pour PR battu
+// ============================================================
+function showPRToast(name, weight, reps, newE1rm, prevE1rm) {
+  // Vibration mobile
+  if (navigator.vibrate) navigator.vibrate([60, 30, 60, 30, 120]);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'pr-toast';
+  wrap.innerHTML = `
+    <div class="pr-toast-inner">
+      ${icon('trophy', 22)}
+      <div>
+        <div class="pr-toast-title">Nouveau record !</div>
+        <div class="pr-toast-sub">${escapeHtml(name)} — ${weight} kg × ${reps}
+          <span class="pr-toast-delta">+${(newE1rm - prevE1rm).toFixed(1)} kg 1RM</span>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  // Anim entrée
+  requestAnimationFrame(() => wrap.classList.add('show'));
+  setTimeout(() => {
+    wrap.classList.remove('show');
+    setTimeout(() => wrap.remove(), 350);
+  }, 3800);
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+// ============================================================
+// Import d'un programme partagé (depuis lien #share/...)
+// ============================================================
+function openImportProgramModal(payload) {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const exoList = el('ul', { class: 'import-exo-list' },
+    ...(payload.exercises || []).map(ex => el('li', {},
+      el('strong', {}, ex.name || 'Exercice'),
+      el('span', { class: 'muted' }, ` — ${ex.sets || 3}×${ex.reps || 10}`),
+    )),
+  );
+
+  const modal = el('div', { class: 'modal' },
+    el('h2', {}, 'Programme partagé'),
+    el('p', {}, 'Quelqu\'un t\'a partagé ce programme :'),
+    el('div', { class: 'import-program-preview' },
+      el('h3', {}, payload.name || 'Programme partagé'),
+      payload.description ? el('p', { class: 'muted' }, payload.description) : null,
+      el('p', { class: 'muted', style: 'font-size: 12px;' }, `${(payload.exercises || []).length} exercices`),
+      exoList,
+    ),
+    el('button', {
+      class: 'btn btn-primary btn-block mt-2',
+      html: `${icon('check', 16)} Importer dans mes programmes`,
+      onclick: () => {
+        const newProg = {
+          id: uid(),
+          name: payload.name || 'Programme importé',
+          description: payload.description || '',
+          exercises: (payload.exercises || []).map(e => ({
+            id: uid(),
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            restSeconds: e.restSeconds,
+            muscleGroups: e.muscleGroups || [],
+            libraryRef: e.libraryRef || null,
+          })),
+        };
+        store.programs.push(newProg);
+        saveState();
+        toast('Programme importé ✓');
+        close();
+        navigate('program-edit', { id: newProg.id });
+      },
+    }),
+    el('button', { class: 'btn btn-ghost btn-block mt-2', onclick: close }, 'Annuler'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
+// Modal de fallback si Web Share + clipboard sont indispos : on affiche
+// le lien dans un input pour copie manuelle.
+function openShareFallbackModal(url) {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const input = el('input', { class: 'input', type: 'text', value: url, readonly: true });
+  const modal = el('div', { class: 'modal' },
+    el('h2', {}, 'Copie ce lien'),
+    el('p', { class: 'muted', style: 'font-size: 13px;' }, 'Sélectionne le lien ci-dessous et copie-le.'),
+    input,
+    el('button', { class: 'btn btn-block mt-2', onclick: close }, 'Fermer'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+// ============================================================
+// View : Mes records personnels (PR)
+// ============================================================
+function renderPersonalRecords(root) {
+  setTitle('Mes records');
+  setChrome(true);
+
+  const records = computePersonalRecords(store.sessions);
+  const entries = Object.values(records).sort((a, b) => b.e1rm - a.e1rm);
+
+  if (entries.length === 0) {
+    root.appendChild(emptyState(
+      icon('trophy', 48),
+      'Aucun record pour l\'instant',
+      'Termine une séance avec poids + reps pour voir tes records apparaître.',
+    ));
+    root.appendChild(el('button', {
+      class: 'btn btn-ghost btn-block mt-2',
+      onclick: () => navigate('programs'),
+    }, '← Retour'));
+    return;
+  }
+
+  root.appendChild(el('p', { class: 'muted', style: 'font-size: 13px; margin-bottom: 12px;' },
+    `${entries.length} record${entries.length > 1 ? 's' : ''} — 1RM estimé via formule Epley`));
+
+  const list = el('div', { class: 'pr-list' });
+  for (const r of entries) {
+    const dateStr = new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    const card = el('div', { class: 'pr-card' },
+      el('div', { class: 'pr-name' }, r.name),
+      el('div', { class: 'pr-stats' },
+        el('div', { class: 'pr-stat-main' },
+          el('span', { class: 'pr-weight' }, `${r.weight}`),
+          el('span', { class: 'pr-unit' }, 'kg'),
+          el('span', { class: 'pr-reps' }, `× ${r.reps}`),
+        ),
+        el('div', { class: 'pr-e1rm' }, `1RM est. ${r.e1rm} kg`),
+      ),
+      el('div', { class: 'pr-date muted' }, dateStr),
+    );
+    list.appendChild(card);
+  }
+  root.appendChild(list);
+
+  root.appendChild(el('button', {
+    class: 'btn btn-ghost btn-block mt-3',
+    onclick: () => navigate('programs'),
+  }, '← Retour'));
+}
+
+// ============================================================
+// Onboarding "Aucun programme" : 3 grandes cartes
+// ============================================================
+function buildOnboardingActions() {
+  const wrap = el('div', { class: 'onboard-grid' });
+  wrap.appendChild(el('button', {
+    class: 'onboard-card onboard-card-primary',
+    onclick: () => openTemplatePicker(),
+    html: `
+      ${icon('clipboard', 28)}
+      <h3>Programmes prêts</h3>
+      <p>PPL, Upper/Lower, 5×5, full body… Importe en 1 clic.</p>
+    `,
+  }));
+  wrap.appendChild(el('button', {
+    class: 'onboard-card onboard-card-ai',
+    onclick: () => openAIGenerator(),
+    html: `
+      ${icon('sparkle', 28)}
+      <h3>Générer avec l'IA <span class="onboard-badge">Bientôt premium</span></h3>
+      <p>Réponds à 5 questions, on te génère un programme sur mesure.</p>
+    `,
+  }));
+  wrap.appendChild(el('button', {
+    class: 'onboard-card',
+    onclick: () => createProgram(),
+    html: `
+      ${icon('plus', 28)}
+      <h3>Créer manuellement</h3>
+      <p>Pars de zéro et construis ton programme exercice par exercice.</p>
+    `,
+  }));
+  return wrap;
+}
+
+function buildQuickStartRow() {
+  return el('div', { class: 'quickstart-row' },
+    el('button', {
+      class: 'btn btn-sm',
+      html: `${icon('clipboard', 14)} <span>Programme prêt</span>`,
+      onclick: () => openTemplatePicker(),
+    }),
+    el('button', {
+      class: 'btn btn-sm',
+      html: `${icon('sparkle', 14)} <span>Générer IA</span>`,
+      onclick: () => openAIGenerator(),
+    }),
+  );
+}
+
+// ============================================================
+// Modal : Sélecteur de programmes pré-remplis
+// ============================================================
+function openTemplatePicker() {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const list = el('div', { class: 'template-list' });
+  for (const pack of TEMPLATE_PACKS) {
+    const card = el('button', {
+      type: 'button',
+      class: 'template-card',
+      onclick: () => { close(); openTemplateConfirm(pack); },
+    });
+    card.innerHTML = `
+      ${pack.badge ? `<span class="template-badge">${pack.badge}</span>` : ''}
+      <h3 class="template-name">${escapeHtml(pack.name)}</h3>
+      <p class="template-desc muted">${escapeHtml(pack.description)}</p>
+      <div class="template-meta">
+        <span>${pack.daysPerWeek} j/sem</span>
+        <span>•</span>
+        <span>${pack.programs.length} séance${pack.programs.length > 1 ? 's' : ''}</span>
+        <span>•</span>
+        <span>${labelLevel(pack.level)}</span>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+
+  const modal = el('div', { class: 'modal template-picker-modal' },
+    el('h2', {}, 'Programmes prêts à l\'emploi'),
+    el('p', { class: 'muted', style: 'font-size: 13px; margin-top: 0;' },
+      'Choisis un programme adapté à ton niveau et tes objectifs.'),
+    list,
+    el('button', { class: 'btn btn-block mt-2', onclick: close }, 'Fermer'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
+function openTemplateConfirm(pack) {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const exoList = el('div', { class: 'template-programs' });
+  for (const prog of pack.programs) {
+    const wrap = el('div', { class: 'template-prog-card' },
+      el('h4', {}, prog.name),
+      prog.description ? el('p', { class: 'muted', style: 'font-size: 12px; margin: 2px 0 6px;' }, prog.description) : null,
+      el('ul', { class: 'template-prog-exos' },
+        ...prog.exercises.map(ex => el('li', {},
+          el('span', {}, ex.name),
+          el('span', { class: 'muted' }, ` — ${ex.sets}×${ex.reps}`),
+        )),
+      ),
+    );
+    exoList.appendChild(wrap);
+  }
+
+  const modal = el('div', { class: 'modal' },
+    el('h2', {}, pack.name),
+    el('p', { class: 'muted' }, pack.description),
+    exoList,
+    el('button', {
+      class: 'btn btn-primary btn-block mt-2',
+      html: `${icon('check', 16)} Importer (${pack.programs.length} programme${pack.programs.length > 1 ? 's' : ''})`,
+      onclick: () => {
+        for (const prog of pack.programs) {
+          store.programs.push({
+            id: uid(),
+            name: prog.name,
+            description: prog.description || pack.description,
+            exercises: prog.exercises.map(e => ({ id: uid(), ...e })),
+          });
+        }
+        saveState();
+        toast(`${pack.programs.length} programme${pack.programs.length > 1 ? 's importés' : ' importé'} ✓`);
+        close();
+        navigate('programs');
+      },
+    }),
+    el('button', { class: 'btn btn-ghost btn-block mt-2', onclick: close }, 'Annuler'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
+// ============================================================
+// Modal : Générateur de programme IA (questionnaire + génération)
+// ============================================================
+function openAIGenerator() {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const answers = {
+    goal: 'hypertrophie',
+    level: 'intermediate',
+    daysPerWeek: 3,
+    equipment: ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight'],
+  };
+
+  const radioRow = (groupName, options, currentValue, onChange) => {
+    const wrap = el('div', { class: 'gen-radio-row' });
+    for (const opt of options) {
+      const id = `${groupName}-${opt.value}`;
+      const btn = el('button', {
+        type: 'button',
+        class: 'gen-radio' + (currentValue === opt.value ? ' active' : ''),
+        onclick: () => {
+          onChange(opt.value);
+          wrap.querySelectorAll('.gen-radio').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        },
+      }, opt.label);
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  };
+
+  const checkboxRow = (options, currentValues, onChange) => {
+    const wrap = el('div', { class: 'gen-radio-row' });
+    for (const opt of options) {
+      const isActive = currentValues.includes(opt.value);
+      const btn = el('button', {
+        type: 'button',
+        class: 'gen-radio' + (isActive ? ' active' : ''),
+        onclick: () => {
+          if (currentValues.includes(opt.value)) {
+            const idx = currentValues.indexOf(opt.value);
+            currentValues.splice(idx, 1);
+            btn.classList.remove('active');
+          } else {
+            currentValues.push(opt.value);
+            btn.classList.add('active');
+          }
+          onChange(currentValues);
+        },
+      }, opt.label);
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  };
+
+  const modal = el('div', { class: 'modal' },
+    el('h2', { style: 'display: flex; align-items: center; gap: 10px;', html: `${icon('sparkle', 20)} <span>Générateur IA</span>` }),
+    el('p', { class: 'muted', style: 'font-size: 12px; margin-top: 0;' },
+      'Phase beta — actuellement basé sur des règles. Bientôt connecté à une IA réelle (feature premium).'),
+
+    el('div', { class: 'field mt-2' },
+      el('label', {}, 'Objectif principal'),
+      radioRow('goal', [
+        { value: 'force', label: 'Force' },
+        { value: 'hypertrophie', label: 'Hypertrophie' },
+        { value: 'endurance', label: 'Endurance' },
+        { value: 'perte', label: 'Perte de gras' },
+        { value: 'bien_etre', label: 'Bien-être' },
+      ], answers.goal, v => answers.goal = v),
+    ),
+
+    el('div', { class: 'field' },
+      el('label', {}, 'Niveau'),
+      radioRow('level', [
+        { value: 'beginner', label: 'Débutant' },
+        { value: 'intermediate', label: 'Intermédiaire' },
+        { value: 'advanced', label: 'Avancé' },
+      ], answers.level, v => answers.level = v),
+    ),
+
+    el('div', { class: 'field' },
+      el('label', {}, 'Fréquence (séances par semaine)'),
+      radioRow('days', [
+        { value: 2, label: '2' },
+        { value: 3, label: '3' },
+        { value: 4, label: '4' },
+        { value: 5, label: '5' },
+        { value: 6, label: '6' },
+      ], answers.daysPerWeek, v => answers.daysPerWeek = v),
+    ),
+
+    el('div', { class: 'field' },
+      el('label', {}, 'Équipement disponible'),
+      checkboxRow([
+        { value: 'barbell', label: 'Barre' },
+        { value: 'dumbbell', label: 'Haltères' },
+        { value: 'machine', label: 'Machines' },
+        { value: 'cable', label: 'Poulies' },
+        { value: 'bodyweight', label: 'Poids du corps' },
+      ], answers.equipment, v => answers.equipment = v),
+    ),
+
+    el('button', {
+      class: 'btn btn-primary btn-block mt-3',
+      html: `${icon('sparkle', 16)} Générer mon programme`,
+      onclick: () => {
+        if (answers.equipment.length === 0) {
+          toast('Coche au moins un type d\'équipement');
+          return;
+        }
+        const result = generatePrograms(answers);
+        close();
+        openAIResultPreview(result);
+      },
+    }),
+    el('button', { class: 'btn btn-ghost btn-block mt-2', onclick: close }, 'Annuler'),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
+function openAIResultPreview(result) {
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: e => { if (e.target === backdrop) close(); } });
+  const close = () => backdrop.remove();
+
+  const list = el('div', { class: 'template-programs' });
+  for (const prog of result.programs) {
+    list.appendChild(el('div', { class: 'template-prog-card' },
+      el('h4', {}, prog.name),
+      el('ul', { class: 'template-prog-exos' },
+        ...prog.exercises.map(ex => el('li', {},
+          el('span', {}, ex.name),
+          el('span', { class: 'muted' }, ` — ${ex.sets}×${ex.reps}`),
+        )),
+      ),
+    ));
+  }
+
+  const modal = el('div', { class: 'modal' },
+    el('h2', {}, result.name),
+    el('p', { class: 'muted' }, result.description),
+    list,
+    el('button', {
+      class: 'btn btn-primary btn-block mt-2',
+      html: `${icon('check', 16)} Importer ce programme`,
+      onclick: () => {
+        for (const prog of result.programs) {
+          store.programs.push({
+            id: uid(),
+            name: prog.name,
+            description: prog.description,
+            exercises: prog.exercises.map(e => ({ id: uid(), ...e })),
+          });
+        }
+        saveState();
+        toast('Programme importé ✓');
+        close();
+        navigate('programs');
+      },
+    }),
+    el('div', { class: 'row mt-2' },
+      el('button', { class: 'btn btn-block', onclick: () => { close(); openAIGenerator(); } }, 'Régénérer'),
+      el('button', { class: 'btn btn-ghost btn-block', onclick: close }, 'Annuler'),
+    ),
+  );
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+}
+
+// ============================================================
+// View : Photos de progression
+// ============================================================
+function renderProgressPhotos(root) {
+  setTitle('Photos de progression');
+  setChrome(true);
+
+  // Bouton upload
+  const fileInput = el('input', {
+    type: 'file',
+    accept: 'image/*',
+    capture: 'environment',
+    style: 'display: none;',
+    onchange: async e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        toast('Compression…');
+        const blob = await compressImage(file);
+        await addPhoto({ date: Date.now(), tag: 'other', blob });
+        toast('Photo ajoutée ✓');
+        navigate('progress-photos');
+      } catch (err) {
+        toast('Échec de l\'ajout');
+        console.warn(err);
+      }
+    },
+  });
+  root.appendChild(fileInput);
+
+  root.appendChild(el('p', { class: 'muted', style: 'font-size: 13px; margin-top: 0;' },
+    'Tes photos sont stockées localement sur ton appareil, elles ne sont jamais envoyées sur internet.'));
+
+  root.appendChild(el('button', {
+    class: 'btn btn-primary btn-block mt-2',
+    html: `${icon('camera', 16)} Ajouter une photo`,
+    onclick: () => fileInput.click(),
+  }));
+
+  // Liste photos
+  const gallery = el('div', { class: 'photo-gallery mt-3' });
+  root.appendChild(gallery);
+
+  listPhotos().then(photos => {
+    if (photos.length === 0) {
+      gallery.appendChild(el('p', { class: 'muted text-center', style: 'padding: 48px 16px; grid-column: 1 / -1;' },
+        'Aucune photo pour l\'instant. Ajoute-en une pour suivre ta progression.'));
+      return;
+    }
+    for (const photo of photos) {
+      const url = blobUrl(photo.blob);
+      const dateStr = new Date(photo.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+      const card = el('div', { class: 'photo-card' },
+        el('img', { class: 'photo-img', src: url, alt: '', loading: 'lazy' }),
+        el('div', { class: 'photo-date' }, dateStr),
+        el('button', {
+          class: 'photo-delete',
+          html: icon('trash', 14),
+          title: 'Supprimer',
+          onclick: () => {
+            confirmDialog('Supprimer cette photo ?', async () => {
+              await deletePhoto(photo.id);
+              toast('Photo supprimée');
+              navigate('progress-photos');
+            });
+          },
+        }),
+      );
+      gallery.appendChild(card);
+    }
+  });
 }
 
 function renderProfile(root) {
@@ -2222,7 +3148,7 @@ function renderProfile(root) {
   const tdee = computeTDEE(p);
   if (tdee) {
     root.appendChild(el('div', { class: 'card', style: 'margin-top: 16px;' },
-      el('p', { class: 'card-title' }, '📊 Tes besoins estimés'),
+      el('p', { class: 'card-title', html: `${icon('chart', 16)} Tes besoins estimés` }),
       el('div', { class: 'card-meta' },
         el('span', {}, `🔥 ${Math.round(tdee)} kcal/jour`),
         el('span', {}, `💪 ${Math.round(tdee * 0.3 / 4)} g glucides`),
@@ -2399,7 +3325,7 @@ function renderNutrition(root) {
 
   // Édition des cibles
   root.appendChild(el('details', { class: 'targets-edit' },
-    el('summary', {}, '⚙️ Ajuster mes objectifs'),
+    el('summary', { html: `${icon('cog', 14)} Ajuster mes objectifs` }),
     el('div', { class: 'row', style: 'margin-top: 8px;' },
       el('label', { class: 'switch' },
         el('input', { type: 'checkbox', checked: tgt.auto,
@@ -2571,13 +3497,14 @@ function openFoodEntry(existing, dateKey) {
 
   const scanBtn = isNew ? el('button', {
     class: 'btn btn-block', type: 'button',
+    html: `${icon('camera', 16)} Scanner un code-barres`,
     onclick: async () => {
       scanBtn.disabled = true;
-      const original = scanBtn.textContent;
-      scanBtn.textContent = '📷 Ouverture caméra…';
+      const original = scanBtn.innerHTML;
+      scanBtn.innerHTML = `${icon('camera', 16)} Ouverture caméra…`;
       try {
         const code = await scanBarcode();
-        if (!code) { scanBtn.disabled = false; scanBtn.textContent = original; return; }
+        if (!code) { scanBtn.disabled = false; scanBtn.innerHTML = original; return; }
         toast('Recherche du produit…');
         const product = await fetchProductByBarcode(code);
         if (!product) {
@@ -2600,10 +3527,10 @@ function openFoodEntry(existing, dateKey) {
         if (err?.message !== 'Cancelled') toast('Scan annulé ou erreur');
       } finally {
         scanBtn.disabled = false;
-        scanBtn.textContent = original;
+        scanBtn.innerHTML = original;
       }
     },
-  }, '📷 Scanner un code-barres') : null;
+  }) : null;
 
   const modal = el('div', { class: 'modal' },
     el('h2', {}, isNew ? 'Ajouter un aliment' : 'Modifier l’aliment'),
@@ -2659,7 +3586,8 @@ function openFoodEntry(existing, dateKey) {
           saveState();
           toast('Aliment sauvegardé pour réutilisation');
         },
-      }, '⭐ Sauvegarder'),
+        html: `${icon('star', 14)} Sauvegarder`,
+      }),
       !isNew ? el('button', {
         class: 'btn btn-sm btn-danger',
         onclick: () => {
@@ -2745,6 +3673,8 @@ function buildRankSection() {
               `${Math.round(r.e1rm)} kg`,
               r.ratio ? ` · ${r.ratio.toFixed(2)}× PdC` : '',
             ),
+            r.exercise ? el('span', { class: 'rank-row-source muted' },
+              `via ${r.exercise}`) : null,
           )
         : el('span', { class: 'rank-row-meta muted' }, '— pas encore de données'),
     );
@@ -2826,7 +3756,7 @@ function buildBodyDiagram(ranks) {
 // Service Worker + auto-update
 // ============================================================
 // IMPORTANT : doit matcher CACHE_NAME dans sw.js et "version" dans version.json
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v47';
 
 // Intervalle de poll pour les sessions longues (PWA ouverte des heures)
 const VERSION_POLL_MS = 5 * 60 * 1000; // 5 min
